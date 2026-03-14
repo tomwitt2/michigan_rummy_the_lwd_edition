@@ -295,6 +295,72 @@ const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editi
     );
 };
 
+const ChatPanel = ({ messages, onSend, numPlayers, getPlayerName, currentPlayer, chatInputRef, readOnly }) => {
+    const scrollRef = React.useRef(null);
+    const [chatPlayerID, setChatPlayerID] = React.useState(currentPlayer);
+
+    // Update default sender when current player changes
+    React.useEffect(() => { setChatPlayerID(currentPlayer); }, [currentPlayer]);
+
+    // Auto-scroll to bottom on new messages
+    React.useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, [messages.length]);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const text = chatInputRef.current?.value?.trim();
+        if (!text) return;
+        onSend(chatPlayerID, text);
+        chatInputRef.current.value = '';
+    };
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: '16px', borderTop: '1px solid #ddd', paddingTop: '10px' }}>
+            <h4 style={{ margin: '0 0 6px', fontSize: '13px', color: '#555' }}>Chat</h4>
+            <div ref={scrollRef} style={{
+                flex: 1, minHeight: '80px', maxHeight: '200px', overflowY: 'auto',
+                background: '#fff', border: '1px solid #ddd', borderRadius: '4px',
+                padding: '6px', fontSize: '12px',
+            }}>
+                {messages.length === 0 && <div style={{ color: '#bbb', fontStyle: 'italic' }}>No messages yet</div>}
+                {messages.map(msg => (
+                    <div key={msg.id} style={{ marginBottom: '4px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#2c3e50' }}>{msg.playerName}</span>
+                        <span style={{ color: '#999', fontSize: '10px', marginLeft: '4px' }}>R{msg.round + 1}</span>
+                        <span style={{ marginLeft: '6px' }}>{msg.text}</span>
+                    </div>
+                ))}
+            </div>
+            {!readOnly && (
+                <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                    <select
+                        value={chatPlayerID}
+                        onChange={e => setChatPlayerID(e.target.value)}
+                        style={{ padding: '3px 4px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '12px', width: '70px' }}
+                    >
+                        {Array.from({ length: numPlayers }).map((_, i) => (
+                            <option key={i} value={String(i)}>{getPlayerName(String(i))}</option>
+                        ))}
+                    </select>
+                    <input
+                        ref={chatInputRef}
+                        type="text"
+                        placeholder="Type a message... (t)"
+                        maxLength={200}
+                        onKeyDown={e => e.stopPropagation()}
+                        style={{ flex: 1, padding: '3px 6px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '12px' }}
+                    />
+                    <button type="submit" style={{
+                        padding: '3px 10px', borderRadius: '4px', border: 'none',
+                        background: '#3498db', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold',
+                    }}>Send</button>
+                </form>
+            )}
+        </div>
+    );
+};
+
 const Board = (props) => {
     const { G, ctx, playerID, moves, log } = props;
     const [selectedIndices, _setSelectedIndices] = React.useState([]);
@@ -337,6 +403,21 @@ const Board = (props) => {
     const [editingNameId, setEditingNameId] = React.useState(null);
     // Wild card sort mode: 'in-place' | 'left' | 'right'
     const [wildSortMode, setWildSortMode] = React.useState('in-place');
+    // Chat system
+    const [chatMessages, setChatMessages] = React.useState(props.initialChat || []);
+    const [includeChatInReplay, setIncludeChatInReplay] = React.useState(true);
+    const chatInputRef = React.useRef(null);
+    const sendChat = (senderID, text) => {
+        setChatMessages(prev => [...prev, {
+            id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+            playerID: senderID,
+            playerName: G.playerNames?.[String(senderID)] || `Player ${senderID}`,
+            text,
+            timestamp: Date.now(),
+            round: G.round,
+            turn: ctx.turn,
+        }]);
+    };
 
     const getPlayerName = (id) => G.playerNames?.[String(id)] || `Player ${id}`;
     const nameInputRef = React.useRef(null);
@@ -501,6 +582,12 @@ const Board = (props) => {
             const digit = e.key === '0' ? 10 : parseInt(e.key);
             if (digit >= 1 && digit <= 10 && digit <= G.players[playerID].hand.length) {
                 toggleSelect(digit - 1);
+            }
+
+            // CHAT ('t' — talk)
+            if (key === 't') {
+                e.preventDefault();
+                chatInputRef.current?.focus();
             }
 
             // ESCAPE cancels layoff picker
@@ -713,25 +800,34 @@ const Board = (props) => {
                     </div>
                     <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
                         {log && props.gameSeed && (
-                            <button
-                                onClick={() => {
-                                    const replayData = buildReplayData({
-                                        seed: props.gameSeed,
-                                        gameConfig: {
-                                            numPlayers: ctx.numPlayers,
-                                            rules: G.rules,
-                                            playerNames: G.playerNames,
-                                        },
-                                        log,
-                                    });
-                                    downloadReplay(replayData);
-                                }}
-                                style={{
-                                    padding: '8px 20px', borderRadius: '6px', border: '2px solid #f1c40f',
-                                    background: 'transparent', color: '#f1c40f', cursor: 'pointer',
-                                    fontSize: '14px', fontWeight: 'bold',
-                                }}
-                            >Save Replay</button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <button
+                                    onClick={() => {
+                                        const replayData = buildReplayData({
+                                            seed: props.gameSeed,
+                                            gameConfig: {
+                                                numPlayers: ctx.numPlayers,
+                                                rules: G.rules,
+                                                playerNames: G.playerNames,
+                                            },
+                                            log,
+                                            chatMessages: includeChatInReplay ? chatMessages : undefined,
+                                        });
+                                        downloadReplay(replayData);
+                                    }}
+                                    style={{
+                                        padding: '8px 20px', borderRadius: '6px', border: '2px solid #f1c40f',
+                                        background: 'transparent', color: '#f1c40f', cursor: 'pointer',
+                                        fontSize: '14px', fontWeight: 'bold',
+                                    }}
+                                >Save Replay</button>
+                                {chatMessages.length > 0 && (
+                                    <label style={{ color: '#bdc3c7', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <input type="checkbox" checked={includeChatInReplay} onChange={e => setIncludeChatInReplay(e.target.checked)} />
+                                        Include Chat
+                                    </label>
+                                )}
+                            </div>
                         )}
                     </div>
                 </div>
@@ -1157,23 +1253,32 @@ const Board = (props) => {
                         </div>
 
                         <div style={{ fontSize: '10px', color: '#aaa', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>n=draw pile · o=discard pile · d=discard · m=meld · l=lay off · w=wild swap · u=undo · s=sort · c=cycle wild sort</span>
+                            <span>n=draw pile · o=discard pile · d=discard · m=meld · l=lay off · w=wild swap · u=undo · s=sort · c=cycle wild sort · t=chat</span>
                             {log && props.gameSeed && (
-                                <button
-                                    onClick={() => {
-                                        const replayData = buildReplayData({
-                                            seed: props.gameSeed,
-                                            gameConfig: {
-                                                numPlayers: ctx.numPlayers,
-                                                rules: G.rules,
-                                                playerNames: G.playerNames,
-                                            },
-                                            log,
-                                        });
-                                        downloadReplay(replayData);
-                                    }}
-                                    style={{ padding: '2px 8px', borderRadius: '3px', border: '1px solid #bbb', background: '#f0f0f0', color: '#555', cursor: 'pointer', fontSize: '10px' }}
-                                >Save Replay</button>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    {chatMessages.length > 0 && (
+                                        <label style={{ fontSize: '10px', color: '#999', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                            <input type="checkbox" checked={includeChatInReplay} onChange={e => setIncludeChatInReplay(e.target.checked)} style={{ width: '12px', height: '12px' }} />
+                                            Chat
+                                        </label>
+                                    )}
+                                    <button
+                                        onClick={() => {
+                                            const replayData = buildReplayData({
+                                                seed: props.gameSeed,
+                                                gameConfig: {
+                                                    numPlayers: ctx.numPlayers,
+                                                    rules: G.rules,
+                                                    playerNames: G.playerNames,
+                                                },
+                                                log,
+                                                chatMessages: includeChatInReplay ? chatMessages : undefined,
+                                            });
+                                            downloadReplay(replayData);
+                                        }}
+                                        style={{ padding: '2px 8px', borderRadius: '3px', border: '1px solid #bbb', background: '#f0f0f0', color: '#555', cursor: 'pointer', fontSize: '10px' }}
+                                    >Save Replay</button>
+                                </span>
                             )}
                         </div>
 
@@ -1367,6 +1472,15 @@ const Board = (props) => {
                                 nameInputRef={nameInputRef}
                                 onCommitName={(id) => commitName(String(id))}
                                 onCancelEdit={() => setEditingNameId(null)}
+                            />
+                            <ChatPanel
+                                messages={props.replayChat || chatMessages}
+                                onSend={sendChat}
+                                numPlayers={ctx.numPlayers}
+                                getPlayerName={getPlayerName}
+                                currentPlayer={ctx.currentPlayer}
+                                chatInputRef={chatInputRef}
+                                readOnly={!!props.isReplay}
                             />
                         </div>
                     </>
@@ -1568,6 +1682,9 @@ const ReplayBoard = ({ replayData, onExit }) => {
         setLiveMode(true);
     }, [engine]);
 
+    // Chat messages from replay data (for replay mode filtering and live mode seeding)
+    const replayChatMessages = replayData.chatMessages || [];
+
     // Live mode — render Board connected to the real client
     if (liveMode) {
         const client = engine.getClient();
@@ -1606,6 +1723,7 @@ const ReplayBoard = ({ replayData, onExit }) => {
                             moves={client.moves}
                             log={state.log}
                             gameSeed={replayData.seed}
+                            initialChat={replayChatMessages}
                         />
                     </div>
                 </div>
@@ -1616,6 +1734,13 @@ const ReplayBoard = ({ replayData, onExit }) => {
     // Replay mode
     const state = engine.getState();
     if (!state) return <div>Loading replay...</div>;
+
+    // Filter chat messages to those at or before the current replay position
+    const currentRound = state.G.round;
+    const currentTurn = state.ctx.turn;
+    const filteredChat = replayChatMessages.filter(msg =>
+        msg.round < currentRound || (msg.round === currentRound && msg.turn <= currentTurn)
+    );
 
     return (
         <div>
@@ -1628,6 +1753,7 @@ const ReplayBoard = ({ replayData, onExit }) => {
                         playerID={state.ctx.currentPlayer}
                         moves={new Proxy({}, { get: () => () => {} })}
                         isReplay={true}
+                        replayChat={filteredChat}
                     />
                 </div>
             </div>

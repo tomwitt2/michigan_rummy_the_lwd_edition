@@ -295,9 +295,10 @@ const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editi
     );
 };
 
-const ChatPanel = ({ messages, onSend, numPlayers, getPlayerName, currentPlayer, chatInputRef, readOnly }) => {
+const ChatPanel = ({ messages, onSend, numPlayers, getPlayerName, currentPlayer, chatInputRef, readOnly, bullets, onDeleteBullet }) => {
     const scrollRef = React.useRef(null);
     const [chatPlayerID, setChatPlayerID] = React.useState(currentPlayer);
+    const [isBullet, setIsBullet] = React.useState(false);
 
     // Update default sender when current player changes
     React.useEffect(() => { setChatPlayerID(currentPlayer); }, [currentPlayer]);
@@ -307,13 +308,29 @@ const ChatPanel = ({ messages, onSend, numPlayers, getPlayerName, currentPlayer,
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [messages.length]);
 
+    // Count bullets for the currently selected sender
+    const senderBulletCount = (bullets || []).filter(b => b.playerID === chatPlayerID).length;
+    const bulletLimitReached = senderBulletCount >= 3;
+
+    // Turn off bullet toggle if limit reached
+    React.useEffect(() => {
+        if (bulletLimitReached && isBullet) setIsBullet(false);
+    }, [bulletLimitReached, isBullet]);
+
     const handleSubmit = (e) => {
         e.preventDefault();
         const text = chatInputRef.current?.value?.trim();
         if (!text) return;
-        onSend(chatPlayerID, text);
+        onSend(chatPlayerID, text, isBullet);
         chatInputRef.current.value = '';
     };
+
+    // Group bullets by player for the bullet list display
+    const bulletsByPlayer = {};
+    (bullets || []).forEach(b => {
+        if (!bulletsByPlayer[b.playerID]) bulletsByPlayer[b.playerID] = [];
+        bulletsByPlayer[b.playerID].push(b);
+    });
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: '16px', borderTop: '1px solid #ddd', paddingTop: '10px' }}>
@@ -325,7 +342,11 @@ const ChatPanel = ({ messages, onSend, numPlayers, getPlayerName, currentPlayer,
             }}>
                 {messages.length === 0 && <div style={{ color: '#bbb', fontStyle: 'italic' }}>No messages yet</div>}
                 {messages.map(msg => (
-                    <div key={msg.id} style={{ marginBottom: '4px' }}>
+                    <div key={msg.id} style={{
+                        marginBottom: '4px',
+                        ...(msg.isBullet ? { background: '#fef9e7', borderLeft: '3px solid #f39c12', paddingLeft: '5px', borderRadius: '2px' } : {}),
+                    }}>
+                        {msg.isBullet && <span style={{ marginRight: '4px' }} title="Bullet">&#x2022;</span>}
                         <span style={{ fontWeight: 'bold', color: '#2c3e50' }}>{msg.playerName}</span>
                         <span style={{ color: '#999', fontSize: '10px', marginLeft: '4px' }}>R{msg.round + 1}</span>
                         <span style={{ marginLeft: '6px' }}>{msg.text}</span>
@@ -333,7 +354,7 @@ const ChatPanel = ({ messages, onSend, numPlayers, getPlayerName, currentPlayer,
                 ))}
             </div>
             {!readOnly && (
-                <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '4px', marginTop: '6px', alignItems: 'center' }}>
                     <select
                         value={chatPlayerID}
                         onChange={e => setChatPlayerID(e.target.value)}
@@ -346,16 +367,61 @@ const ChatPanel = ({ messages, onSend, numPlayers, getPlayerName, currentPlayer,
                     <input
                         ref={chatInputRef}
                         type="text"
-                        placeholder="Type a message... (t)"
+                        placeholder={isBullet ? 'Enter a bullet... (t)' : 'Type a message... (t)'}
                         maxLength={200}
                         onKeyDown={e => e.stopPropagation()}
-                        style={{ flex: 1, padding: '3px 6px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '12px' }}
+                        style={{
+                            flex: 1, padding: '3px 6px', borderRadius: '4px', fontSize: '12px',
+                            border: isBullet ? '1px solid #f39c12' : '1px solid #ccc',
+                            background: isBullet ? '#fef9e7' : '#fff',
+                        }}
                     />
+                    <button
+                        type="button"
+                        title={bulletLimitReached ? `${getPlayerName(chatPlayerID)} has used all 3 bullets` : 'Toggle bullet mode'}
+                        onClick={() => { if (!bulletLimitReached) setIsBullet(b => !b); }}
+                        style={{
+                            padding: '3px 8px', borderRadius: '4px', border: 'none', cursor: bulletLimitReached ? 'not-allowed' : 'pointer',
+                            fontSize: '14px', fontWeight: 'bold', lineHeight: 1,
+                            background: isBullet ? '#f39c12' : '#e0e0e0',
+                            color: isBullet ? 'white' : (bulletLimitReached ? '#bbb' : '#555'),
+                            opacity: bulletLimitReached && !isBullet ? 0.5 : 1,
+                        }}
+                    >&#x2022;</button>
                     <button type="submit" style={{
                         padding: '3px 10px', borderRadius: '4px', border: 'none',
-                        background: '#3498db', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold',
-                    }}>Send</button>
+                        background: isBullet ? '#f39c12' : '#3498db', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold',
+                    }}>{isBullet ? 'Add' : 'Send'}</button>
                 </form>
+            )}
+            {(bullets || []).length > 0 && (
+                <div style={{ marginTop: '10px', borderTop: '1px solid #ddd', paddingTop: '8px' }}>
+                    <h4 style={{ margin: '0 0 6px', fontSize: '13px', color: '#555' }}>The Bullet List</h4>
+                    {Object.keys(bulletsByPlayer).map(pid => (
+                        <div key={pid} style={{ marginBottom: '6px' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#2c3e50', marginBottom: '2px' }}>{getPlayerName(pid)}</div>
+                            {bulletsByPlayer[pid].map(b => (
+                                <div key={b.id} style={{
+                                    fontSize: '12px', paddingLeft: '10px', marginBottom: '2px',
+                                    display: 'flex', alignItems: 'flex-start', gap: '4px',
+                                }}>
+                                    <span style={{ color: '#f39c12', flexShrink: 0 }}>&#x2022;</span>
+                                    <span style={{ flex: 1 }}>{b.text}</span>
+                                    {!readOnly && onDeleteBullet && (
+                                        <button
+                                            onClick={() => onDeleteBullet(b.id)}
+                                            title="Remove bullet"
+                                            style={{
+                                                border: 'none', background: 'none', color: '#ccc', cursor: 'pointer',
+                                                fontSize: '11px', padding: '0 2px', lineHeight: 1, flexShrink: 0,
+                                            }}
+                                        >&times;</button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
             )}
         </div>
     );
@@ -405,10 +471,11 @@ const Board = (props) => {
     const [wildSortMode, setWildSortMode] = React.useState('in-place');
     // Chat system
     const [chatMessages, setChatMessages] = React.useState(props.initialChat || []);
+    const [bulletMessages, setBulletMessages] = React.useState(props.initialBullets || []);
     const [includeChatInReplay, setIncludeChatInReplay] = React.useState(true);
     const chatInputRef = React.useRef(null);
-    const sendChat = (senderID, text) => {
-        setChatMessages(prev => [...prev, {
+    const sendChat = (senderID, text, isBullet) => {
+        const msg = {
             id: Date.now() + '-' + Math.random().toString(36).slice(2, 6),
             playerID: senderID,
             playerName: G.playerNames?.[String(senderID)] || `Player ${senderID}`,
@@ -416,7 +483,17 @@ const Board = (props) => {
             timestamp: Date.now(),
             round: G.round,
             turn: ctx.turn,
-        }]);
+            isBullet: !!isBullet,
+        };
+        setChatMessages(prev => [...prev, msg]);
+        if (isBullet) {
+            setBulletMessages(prev => [...prev, msg]);
+        }
+    };
+    const deleteBullet = (bulletId) => {
+        setBulletMessages(prev => prev.filter(b => b.id !== bulletId));
+        // Also remove bullet flag from chat stream
+        setChatMessages(prev => prev.map(m => m.id === bulletId ? { ...m, isBullet: false } : m));
     };
 
     const getPlayerName = (id) => G.playerNames?.[String(id)] || `Player ${id}`;
@@ -812,6 +889,7 @@ const Board = (props) => {
                                             },
                                             log,
                                             chatMessages: includeChatInReplay ? chatMessages : undefined,
+                                            bulletMessages: bulletMessages.length > 0 ? bulletMessages : undefined,
                                         });
                                         downloadReplay(replayData);
                                     }}
@@ -1273,6 +1351,7 @@ const Board = (props) => {
                                                 },
                                                 log,
                                                 chatMessages: includeChatInReplay ? chatMessages : undefined,
+                                                bulletMessages: bulletMessages.length > 0 ? bulletMessages : undefined,
                                             });
                                             downloadReplay(replayData);
                                         }}
@@ -1481,6 +1560,8 @@ const Board = (props) => {
                                 currentPlayer={ctx.currentPlayer}
                                 chatInputRef={chatInputRef}
                                 readOnly={!!props.isReplay}
+                                bullets={props.replayBullets || bulletMessages}
+                                onDeleteBullet={!props.isReplay ? deleteBullet : undefined}
                             />
                         </div>
                     </>
@@ -1682,8 +1763,9 @@ const ReplayBoard = ({ replayData, onExit }) => {
         setLiveMode(true);
     }, [engine]);
 
-    // Chat messages from replay data (for replay mode filtering and live mode seeding)
+    // Chat and bullet messages from replay data
     const replayChatMessages = replayData.chatMessages || [];
+    const replayBulletMessages = replayData.bulletMessages || [];
 
     // Live mode — render Board connected to the real client
     if (liveMode) {
@@ -1724,6 +1806,7 @@ const ReplayBoard = ({ replayData, onExit }) => {
                             log={state.log}
                             gameSeed={replayData.seed}
                             initialChat={replayChatMessages}
+                            initialBullets={replayBulletMessages}
                         />
                     </div>
                 </div>
@@ -1754,6 +1837,7 @@ const ReplayBoard = ({ replayData, onExit }) => {
                         moves={new Proxy({}, { get: () => () => {} })}
                         isReplay={true}
                         replayChat={filteredChat}
+                        replayBullets={replayBulletMessages}
                     />
                 </div>
             </div>

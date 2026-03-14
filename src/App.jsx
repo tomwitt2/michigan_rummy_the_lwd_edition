@@ -791,7 +791,7 @@ const Board = (props) => {
                             </div>
                             <div style={{ background: '#eee', padding: '4px 10px', borderRadius: '6px', flex: 1, fontSize: '13px' }}>
                                 <p style={{ margin: '2px 0' }}><strong>Score:</strong> {player.score}</p>
-                                <p style={{ margin: '2px 0' }}><strong>Status:</strong> {player.isOnBoard ? 'On the Board' : 'Not on the Board'}</p>
+                                <p style={{ margin: '2px 0' }}><strong>Status:</strong> <span style={{ fontWeight: 'bold', color: player.isOnBoard ? '#27ae60' : '#e74c3c' }}>{player.isOnBoard ? 'On the Board' : 'Not on the Board'}</span></p>
                                 {G.flipCount > 0 && (
                                     <div style={{ marginTop: '3px' }}>
                                         <button

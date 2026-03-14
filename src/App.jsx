@@ -417,17 +417,17 @@ const Board = (props) => {
             const key = e.key.toLowerCase();
             const sel = selectedRef.current;
 
-            // DRAW DECK ('b')
-            if (key === 'b' && !G.hasDrawn && isMyTurn) {
+            // DRAW PILE ('n' — new card)
+            if (key === 'n' && !G.hasDrawn && isMyTurn) {
                 moves.drawCard(true);
             }
 
-            // DRAW DISCARD ('t')
-            if (key === 't' && !G.hasDrawn && isMyTurn && G.discardPile.length > 0) {
+            // DISCARD PILE ('o' — old card)
+            if (key === 'o' && !G.hasDrawn && isMyTurn && G.discardPile.length > 0) {
                 moves.drawCard(false);
             }
 
-            // SWAP WILD ('w')
+            // WILD SWAP ('w')
             if (key === 'w' && sel.length === 1 && isMyTurn) {
                 const cardIndex = sel[0];
                 const card = G.players[playerID].hand[cardIndex];
@@ -455,14 +455,14 @@ const Board = (props) => {
                 if (swapped) setSelectedIndices([]);
             }
 
-            // DISCARD ('g')
-            if (key === 'g' && sel.length === 1 && (G.hasDrawn || G.isFirstTurn) && isMyTurn) {
+            // DISCARD ('d')
+            if (key === 'd' && sel.length === 1 && (G.hasDrawn || G.isFirstTurn) && isMyTurn) {
                 moves.discardCard(sel[0]);
                 setSelectedIndices([]);
             }
 
-            // MELD ('c')
-            if (key === 'c' && sel.length >= 3) {
+            // MELD ('m')
+            if (key === 'm' && sel.length >= 3) {
                 const selectedCards = sel.map(i => G.players[playerID].hand[i]);
                 let type = null;
                 if (isValidSet(selectedCards, G.round, G.rules)) type = 'set';
@@ -476,15 +476,31 @@ const Board = (props) => {
                 }
             }
 
-            // LAYOFF ('e')
-            if (key === 'e' && sel.length > 0) {
+            // LAY OFF ('l')
+            if (key === 'l' && sel.length > 0) {
                 sel.forEach(cardIdx => doLayoff(cardIdx));
                 setSelectedIndices([]);
             }
 
-            // UNDO last layoff/swap ('z')
-            if (key === 'z' && isMyTurn && G.turnUndoStack?.length > 0) {
+            // UNDO last layoff/swap ('u')
+            if (key === 'u' && isMyTurn && G.turnUndoStack?.length > 0) {
                 moves.undoLastAction();
+            }
+
+            // SORT CARDS ('s')
+            if (key === 's') {
+                sortHand();
+            }
+
+            // CYCLE WILD SORT ('c')
+            if (key === 'c') {
+                setWildSortMode(m => m === 'in-place' ? 'left' : m === 'left' ? 'right' : 'in-place');
+            }
+
+            // NUMBER KEYS select/deselect cards (1-9, 0=10)
+            const digit = e.key === '0' ? 10 : parseInt(e.key);
+            if (digit >= 1 && digit <= 10 && digit <= G.players[playerID].hand.length) {
+                toggleSelect(digit - 1);
             }
 
             // ESCAPE cancels layoff picker
@@ -829,7 +845,7 @@ const Board = (props) => {
                                     background: wildSortMode === 'in-place' ? '#f0f0f0' : '#fff9c4',
                                     color: '#666', fontWeight: 'bold',
                                 }}
-                            >W: {wildSortMode === 'left' ? '◀' : wildSortMode === 'right' ? '▶' : '—'}</span>
+                            >W: {wildSortMode === 'left' ? '◀' : wildSortMode === 'right' ? '▶' : '—'} (c)</span>
                             <button
                                 onClick={sortHand}
                                 title="Sort hand by rank (held cards stay in place)"
@@ -837,7 +853,7 @@ const Board = (props) => {
                                     padding: '2px 8px', borderRadius: '4px', border: '1px solid #bbb',
                                     background: '#f0f0f0', color: '#555', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold',
                                 }}
-                            >Sort</button>
+                            >Sort Cards (s)</button>
                         </div>
                         <div
                             style={{ background: '#f5f5f5', padding: '8px 12px', borderRadius: '8px' }}
@@ -980,14 +996,14 @@ const Board = (props) => {
                                     padding: '3px 10px', borderRadius: '4px', border: 'none',
                                     background: '#2980b9', color: 'white', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px'
                                 }}>
-                                    Draw Pile (b) · {G.deck.length}
+                                    Draw Pile (n) · {G.deck.length}
                                 </button>
                                 {G.discardPile.length > 0 && (
                                     <button onClick={() => moves.drawCard(false)} style={{
                                         padding: '3px 10px', borderRadius: '4px', border: 'none',
                                         background: '#8e44ad', color: 'white', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px'
                                     }}>
-                                        Discard Pile (t) · {G.discardPile.length}
+                                        Discard Pile (o) · {G.discardPile.length}
                                     </button>
                                 )}
                             </div>
@@ -1032,7 +1048,7 @@ const Board = (props) => {
                                             padding: '4px 10px', borderRadius: '4px', border: 'none', fontSize: '12px', cursor: canDiscard ? 'pointer' : 'default',
                                             background: canDiscard ? '#e74c3c' : '#ddd', color: canDiscard ? 'white' : '#999', fontWeight: 'bold'
                                         }}
-                                    >Discard (g)</button>
+                                    >Discard (d)</button>
                                 );
                             })()}
 
@@ -1055,7 +1071,7 @@ const Board = (props) => {
                                             padding: '4px 10px', borderRadius: '4px', border: 'none', fontSize: '12px', cursor: canMeld ? 'pointer' : 'default',
                                             background: canMeld ? '#27ae60' : '#ddd', color: canMeld ? 'white' : '#999', fontWeight: 'bold'
                                         }}
-                                    >Meld (c)</button>
+                                    >Meld (m)</button>
                                 );
                             })()}
 
@@ -1079,7 +1095,7 @@ const Board = (props) => {
                                             border: hintAvailable ? '1px solid #27ae60' : hintNotOnBoard ? '2px dashed #27ae60' : '1px solid #bbb',
                                         }}
                                         title={hintNotOnBoard ? 'Lay off possible but you must meld first to get on the board' : ''}
-                                    >Lay Off (e){hintNotOnBoard ? '*' : ''}</button>
+                                    >Lay Off (l){hintNotOnBoard ? '*' : ''}</button>
                                 );
                             })()}
 
@@ -1123,7 +1139,7 @@ const Board = (props) => {
                                             border: hintAvailable ? '1px solid #7d3c98' : hintNotOnBoard ? '2px dashed #8e44ad' : '1px solid #bbb',
                                         }}
                                         title={hintNotOnBoard ? 'Swap possible but you must meld first to get on the board' : ''}
-                                    >Swap Wild (w){hintNotOnBoard ? '*' : ''}</button>
+                                    >Wild Swap (w){hintNotOnBoard ? '*' : ''}</button>
                                 );
                             })()}
 
@@ -1135,13 +1151,13 @@ const Board = (props) => {
                                         padding: '4px 10px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold',
                                         background: '#e67e22', color: 'white', border: '1px solid #d35400',
                                     }}
-                                    title={`Undo last ${G.turnUndoStack[G.turnUndoStack.length - 1]?.action === 'swapWild' ? 'wild swap' : 'lay off'} (z)`}
-                                >Undo (z)</button>
+                                    title={`Undo last ${G.turnUndoStack[G.turnUndoStack.length - 1]?.action === 'swapWild' ? 'wild swap' : 'lay off'} (u)`}
+                                >Undo (u)</button>
                             )}
                         </div>
 
                         <div style={{ fontSize: '10px', color: '#aaa', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>b=draw deck · t=draw discard · g=discard · c=meld · e=layoff · w=swap wild · z=undo</span>
+                            <span>n=draw pile · o=discard pile · d=discard · m=meld · l=lay off · w=wild swap · u=undo · s=sort · c=cycle wild sort</span>
                             {log && props.gameSeed && (
                                 <button
                                     onClick={() => {

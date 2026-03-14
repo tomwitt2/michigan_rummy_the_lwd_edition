@@ -15,7 +15,7 @@
  * @param {Array}  params.log - boardgame.io action log (props.log)
  * @returns {object} Replay data ready for serialisation
  */
-export function buildReplayData({ seed, gameConfig, log, chatMessages }) {
+export function buildReplayData({ seed, gameConfig, log, chatMessages, bulletMessages }) {
     const data = {
         version: 1,
         timestamp: new Date().toISOString(),
@@ -25,6 +25,9 @@ export function buildReplayData({ seed, gameConfig, log, chatMessages }) {
     };
     if (chatMessages && chatMessages.length > 0) {
         data.chatMessages = chatMessages;
+    }
+    if (bulletMessages && bulletMessages.length > 0) {
+        data.bulletMessages = bulletMessages;
     }
     return data;
 }

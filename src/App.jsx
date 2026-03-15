@@ -439,32 +439,11 @@ const Board = (props) => {
     const [dragIndex, setDragIndex] = React.useState(null);
     const [dropTarget, setDropTarget] = React.useState(null);
     const [scoreDrawerOpen, setScoreDrawerOpen] = React.useState(false);
-    const [scoreDrawerLocked, setScoreDrawerLocked] = React.useState(false);
     const [scoreboardWidth, setScoreboardWidth] = React.useState(600);
     const isDraggingDivider = React.useRef(false);
     // Layoff target picker: { cardIndex, targets: [{ meldIndex, position }] } or null
     const [layoffPick, setLayoffPick] = React.useState(null);
-    // Per-player hold indices — persists when switching players via debug panel
-    const holdIndicesRef = React.useRef({});
-    const getHoldIndex = () => holdIndicesRef.current[playerID] || 0;
-    const [holdIndex, _setHoldIndex] = React.useState(getHoldIndex);
-    const setHoldIndex = (valOrFn) => {
-        _setHoldIndex(prev => {
-            const next = typeof valOrFn === 'function' ? valOrFn(prev) : valOrFn;
-            holdIndicesRef.current[playerID] = next;
-            return next;
-        });
-    };
-    // Restore hold index when playerID changes (debug panel switch)
-    const prevPlayerID = React.useRef(playerID);
-    React.useEffect(() => {
-        if (playerID !== prevPlayerID.current) {
-            prevPlayerID.current = playerID;
-            _setHoldIndex(holdIndicesRef.current[playerID] || 0);
-        }
-    }, [playerID]);
     const handCardsRef = React.useRef(null);
-    const [holdTrackWidth, setHoldTrackWidth] = React.useState(200);
     // Player name editing — which player ID is being edited (null = none)
     const [editingNameId, setEditingNameId] = React.useState(null);
     // Wild card sort mode: 'in-place' | 'left' | 'right'
@@ -514,24 +493,6 @@ const Board = (props) => {
             nameInputRef.current.select();
         }
     }, [editingNameId]);
-
-    // Measure cards container width for hold slider track
-    React.useEffect(() => {
-        const measure = () => {
-            if (handCardsRef.current) {
-                const children = handCardsRef.current.children;
-                if (children.length > 0) {
-                    const last = children[children.length - 1];
-                    const containerLeft = handCardsRef.current.getBoundingClientRect().left;
-                    const lastRight = last.getBoundingClientRect().right;
-                    setHoldTrackWidth(lastRight - containerLeft);
-                }
-            }
-        };
-        measure();
-        window.addEventListener('resize', measure);
-        return () => window.removeEventListener('resize', measure);
-    });
 
     // Find all valid (meldIndex, position) targets for laying off a card
     const findLayoffTargets = React.useCallback((card) => {
@@ -683,31 +644,12 @@ const Board = (props) => {
     const isMyTurn = ctx.currentPlayer === playerID;
 
     // Auto-clear selection when hand shrinks (card was played/discarded)
-    // Decrement holdIndex for each card removed from the held region (left of marker)
     const prevHandLen = React.useRef(player.hand.length);
-    const prevSelection = React.useRef([]);
-    // Snapshot selection before it gets cleared, so we know which cards were played
-    React.useEffect(() => {
-        prevSelection.current = selectedRef.current.slice();
-    });
     React.useEffect(() => {
         if (player.hand.length < prevHandLen.current) {
-            const cardsRemoved = prevHandLen.current - player.hand.length;
-            const oldHold = holdIndicesRef.current[playerID] || 0;
-            // Count how many removed cards were in the held region (index < holdIndex)
-            const sel = prevSelection.current;
-            let heldCardsRemoved = 0;
-            if (sel.length > 0 && sel.length === cardsRemoved) {
-                // We know exactly which cards were removed
-                heldCardsRemoved = sel.filter(i => i < oldHold).length;
-            } else {
-                // Fallback: clamp only (e.g. cards removed by other means)
-                heldCardsRemoved = Math.max(0, oldHold - player.hand.length);
-            }
             selectedRef.current = [];
             _setSelectedIndices([]);
             setLayoffPick(null);
-            setHoldIndex(prev => Math.max(0, prev - heldCardsRemoved));
         }
         prevHandLen.current = player.hand.length;
     }, [player.hand.length]);
@@ -765,8 +707,7 @@ const Board = (props) => {
 
     const sortHand = () => {
         const hand = player.hand;
-        const sortStart = holdIndex;
-        if (sortStart >= hand.length) return;
+        const sortStart = 0;
 
         // Build index array for the sortable portion
         const sortableIndices = [];
@@ -1050,10 +991,6 @@ const Board = (props) => {
                                             if (dragIndex !== null && dragIndex !== i) {
                                                 moves.reorderHand({ startIndex: dragIndex, endIndex: i });
                                                 setSelectedIndices([]);
-                                                if (holdIndex > 0) {
-                                                    if (dragIndex < holdIndex && i >= holdIndex) setHoldIndex(holdIndex - 1);
-                                                    else if (dragIndex >= holdIndex && i < holdIndex) setHoldIndex(holdIndex + 1);
-                                                }
                                             }
                                             setDragIndex(null);
                                             setDropTarget(null);
@@ -1088,65 +1025,6 @@ const Board = (props) => {
                                         />
                                     </div>
                                 ))}
-                            </div>
-                            {/* Hold slider track — inside grey box, width matches cards */}
-                            <div style={{ position: 'relative', height: '28px', marginTop: '6px', width: `${holdTrackWidth}px` }}>
-                                {/* Left line (held region) — glowing */}
-                                {holdIndex > 0 && (
-                                    <div style={{
-                                        position: 'absolute', top: '8px', left: 0,
-                                        width: `${(holdIndex / player.hand.length) * 100}%`,
-                                        height: '2px', background: '#e74c3c', borderRadius: '1px',
-                                        boxShadow: '0 0 6px 1px rgba(231, 76, 60, 0.5)',
-                                    }} />
-                                )}
-                                {/* Right line (sortable region) — plain grey */}
-                                <div style={{
-                                    position: 'absolute', top: '8px',
-                                    left: `${(holdIndex / player.hand.length) * 100}%`,
-                                    right: 0,
-                                    height: '2px', background: '#ccc', borderRadius: '1px',
-                                }} />
-                                {/* Triangle marker + "Hold" label */}
-                                <div style={{
-                                    position: 'absolute', top: '0px',
-                                    left: `${(holdIndex / player.hand.length) * 100}%`,
-                                    transform: 'translateX(-6px)',
-                                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                                    pointerEvents: 'none',
-                                }}>
-                                    {/* Up-facing triangle, centered on line (top=9px is line center, triangle is 12px tall, so top=3px) */}
-                                    <div style={{
-                                        width: 0, height: 0,
-                                        borderLeft: '6px solid transparent',
-                                        borderRight: '6px solid transparent',
-                                        borderBottom: `12px solid ${holdIndex > 0 ? '#e74c3c' : '#bbb'}`,
-                                        marginTop: '3px',
-                                    }} />
-                                    {holdIndex > 0 && (
-                                        <span style={{
-                                            fontSize: '7px', fontWeight: 'bold',
-                                            color: '#e74c3c', marginTop: '1px',
-                                            lineHeight: 1, whiteSpace: 'nowrap',
-                                        }}>Hold</span>
-                                    )}
-                                </div>
-                                {/* Invisible range input on top for interaction */}
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={player.hand.length}
-                                    value={holdIndex}
-                                    onChange={(e) => setHoldIndex(Number(e.target.value))}
-                                    title={holdIndex > 0 ? `${holdIndex} held · ${player.hand.length - holdIndex} sortable` : 'Slide right to hold cards from sorting'}
-                                    style={{
-                                        position: 'absolute', top: 0, left: '-6px',
-                                        width: 'calc(100% + 12px)', height: '28px',
-                                        appearance: 'none', WebkitAppearance: 'none',
-                                        background: 'transparent', cursor: 'pointer', margin: 0,
-                                        opacity: 0,
-                                    }}
-                                />
                             </div>
                         </div>
 
@@ -1464,7 +1342,7 @@ const Board = (props) => {
                 </div>
 
                 {/* Scoreboard flyout tab — positioned on the right edge */}
-                {!(scoreDrawerOpen || scoreDrawerLocked) && (
+                {!scoreDrawerOpen && (
                     <div
                         onClick={() => setScoreDrawerOpen(true)}
                         title="Open Scoreboard"
@@ -1480,7 +1358,7 @@ const Board = (props) => {
                 )}
 
                 {/* Draggable divider + Scoreboard panel */}
-                {(scoreDrawerOpen || scoreDrawerLocked) && (
+                {scoreDrawerOpen && (
                     <>
                         {/* Draggable divider */}
                         <div
@@ -1521,7 +1399,7 @@ const Board = (props) => {
                         }}>
                             {/* Collapse tab on right edge of scoreboard */}
                             <div
-                                onClick={() => { setScoreDrawerOpen(false); setScoreDrawerLocked(false); }}
+                                onClick={() => setScoreDrawerOpen(false)}
                                 title="Close Scoreboard"
                                 style={{
                                     position: 'absolute', right: 0, top: '120px',
@@ -1532,19 +1410,7 @@ const Board = (props) => {
                             >
                                 <span style={{ color: 'white', fontSize: '16px', lineHeight: 1 }}>&#9654;</span>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                <h3 style={{ margin: 0 }}>Scoreboard</h3>
-                                <button
-                                    onClick={() => setScoreDrawerLocked(prev => !prev)}
-                                    title={scoreDrawerLocked ? 'Unlock scoreboard' : 'Lock scoreboard open'}
-                                    style={{
-                                        padding: '4px 10px', borderRadius: '4px', border: '1px solid #ddd',
-                                        background: scoreDrawerLocked ? '#f39c12' : '#f0f0f0',
-                                        color: scoreDrawerLocked ? 'white' : '#555',
-                                        cursor: 'pointer', fontSize: '13px',
-                                    }}
-                                >{scoreDrawerLocked ? '🔒' : '📌'}</button>
-                            </div>
+                            <h3 style={{ margin: '0 0 10px' }}>Scoreboard</h3>
                             <Scoreboard G={G} numPlayers={ctx.numPlayers} playerNames={G.playerNames} currentPlayer={ctx.currentPlayer}
                                 onRename={(id) => startEditName(String(id))}
                                 editingNameId={editingNameId}

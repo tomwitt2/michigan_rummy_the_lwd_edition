@@ -632,6 +632,30 @@ const Board = (props) => {
             if (key === 'Escape') {
                 setLayoffPick(null);
             }
+
+            // TAB — switch to next player in debug panel (dev only)
+            if (e.key === 'Tab' && import.meta.env.DEV) {
+                e.preventDefault();
+                const nextPlayer = String((parseInt(playerID) + 1) % ctx.numPlayers);
+                const btns = document.querySelectorAll('[class*="debug"] button, [data-testid="playerID"] option');
+                // Try to find and click the player radio/button in bgio debug panel
+                for (const btn of document.querySelectorAll('button')) {
+                    if (btn.textContent.trim() === nextPlayer && btn.closest('[class*="debug"], [class*="panel"]')) {
+                        btn.click();
+                        return;
+                    }
+                }
+                // Fallback: find the select/radio in the debug panel
+                const selects = document.querySelectorAll('select');
+                for (const sel of selects) {
+                    const opts = Array.from(sel.options).map(o => o.value);
+                    if (opts.includes('0') && opts.includes('1')) {
+                        sel.value = nextPlayer;
+                        sel.dispatchEvent(new Event('change', { bubbles: true }));
+                        return;
+                    }
+                }
+            }
         };
 
         window.addEventListener('keydown', handleKeyDown);

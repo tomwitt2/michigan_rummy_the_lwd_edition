@@ -15,7 +15,7 @@ function createDeck() {
     return deck;
 }
 
-function getCardValue(card, roundIndex) {
+export function getCardValue(card, roundIndex) {
     if (isWild(card, roundIndex)) return 25;
     if (card.rank === 'A') return 1;
     if (['J', 'Q', 'K'].includes(card.rank)) return 10;
@@ -193,6 +193,7 @@ const LWDRummyBase = {
             scoreHistory: [],
             playedMeldsIndices: [], // Track melds created in the current turn
             flipCount: 0,
+            flipHistory: [], // flipCount per completed round (for debug)
             votes: {}, // maps playerID -> boolean
             nextRoundStarter: null,
             drewFromDiscard: false,
@@ -500,6 +501,7 @@ const LWDRummyBase = {
                 }
 
                 G.scoreHistory.push(roundResults);
+                G.flipHistory.push(G.flipCount);
 
                 if (G.round < 12) {
                     G.round++;

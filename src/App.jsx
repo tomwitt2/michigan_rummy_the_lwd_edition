@@ -1,9 +1,12 @@
 import React from 'react';
-import { Client } from 'boardgame.io/react';
+import { Client as ReactClient } from 'boardgame.io/react';
+import { Client as BGClient } from 'boardgame.io/client';
 import { createGame, isWild, isValidSet, isValidRun, analyzeRun, RANKS } from './game/logic';
 import { buildReplayData, downloadReplay, loadReplayFile } from './replay/replayStorage.js';
 import { ReplayEngine } from './replay/ReplayEngine.js';
 import { ReplayControls } from './replay/ReplayControls.jsx';
+import { BotController } from './bot/BotController.jsx';
+import { pickBotNames } from './bot/botNames.js';
 
 // Game initialized dynamically via createGame()
 
@@ -132,7 +135,7 @@ class ErrorBoundary extends React.Component {
     }
 }
 
-const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames }) => {
+const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames, dealer }) => {
     const size = 110;
     const center = size / 2;
     const radius = 38;
@@ -147,9 +150,10 @@ const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames }) => {
         const y = center + radius * Math.sin(angle);
         const isActive = String(i) === String(currentPlayer);
         const isViewer = i === viewerIdx;
+        const isDealer = dealer != null && i === dealer;
         const label = playerNames?.[i]?.[0]?.toUpperCase() || String(i);
 
-        return { x, y, isActive, isViewer, label, id: i };
+        return { x, y, isActive, isViewer, isDealer, label, id: i };
     });
 
     return (
@@ -180,14 +184,42 @@ const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames }) => {
                     zIndex: 2,
                 }} title={playerNames?.[p.id] || `Player ${p.id}`}>
                     {p.label}
+                    {p.isDealer && (
+                        <div style={{
+                            position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)',
+                            width: '16px', height: '16px', zIndex: 3,
+                        }}>
+                            <svg viewBox="0 0 16 16" width="16" height="16">
+                                <rect x="1" y="2" width="14" height="12" rx="2" fill="#e74c3c" stroke="#c0392b" strokeWidth="0.8" />
+                                <text x="8" y="9.5" textAnchor="middle" fontSize="7" fontWeight="bold" fill="white">D</text>
+                            </svg>
+                        </div>
+                    )}
                 </div>
             ))}
         </div>
     );
 };
 
+const ORDINAL_LABELS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+
 const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editingNameId, nameInputRef, onCommitName, onCancelEdit }) => {
     const rounds = RANKS; // A through K (13 rounds)
+    const isGameOver = G.scoreHistory?.length >= 13;
+
+    // Compute final rankings (lower score = better rank)
+    const rankings = React.useMemo(() => {
+        if (!isGameOver) return null;
+        const scores = Array.from({ length: numPlayers }).map((_, i) => ({ id: i, score: G.players[i].score }));
+        scores.sort((a, b) => a.score - b.score);
+        const rankMap = {};
+        let rank = 0;
+        for (let j = 0; j < scores.length; j++) {
+            if (j > 0 && scores[j].score !== scores[j - 1].score) rank = j;
+            rankMap[scores[j].id] = rank;
+        }
+        return rankMap;
+    }, [isGameOver, numPlayers, G.players]);
 
     return (
         <div style={{ overflowX: 'auto' }}>
@@ -196,12 +228,13 @@ const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editi
                     <tr style={{ background: '#f8f9fa' }}>
                         <th style={{ border: '1px solid #ddd', padding: '8px' }}>Rd</th>
                         {Array.from({ length: numPlayers }).map((_, i) => {
-                            const isActive = String(i) === String(currentPlayer);
+                            const isActive = !isGameOver && String(i) === String(currentPlayer);
+                            const isWinner = isGameOver && rankings?.[i] === 0;
                             return (
                                 <th key={i} style={{
                                     border: '1px solid #ddd', padding: '8px',
-                                    background: isActive ? '#fff3cd' : undefined,
-                                    boxShadow: isActive ? 'inset 0 3px 0 #f39c12' : 'none',
+                                    background: isWinner ? '#fff8e1' : isActive ? '#fff3cd' : undefined,
+                                    boxShadow: isWinner ? 'inset 0 3px 0 #f1c40f' : isActive ? 'inset 0 3px 0 #f39c12' : 'none',
                                 }}>
                                     {editingNameId === String(i) ? (
                                         <input
@@ -218,7 +251,7 @@ const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editi
                                         />
                                     ) : (
                                         <span style={{
-                                            color: isActive ? '#e67e22' : undefined,
+                                            color: isWinner ? '#d4a017' : isActive ? '#e67e22' : undefined,
                                             fontWeight: 'bold',
                                             cursor: onRename ? 'text' : 'default',
                                             borderBottom: onRename ? '2px dashed transparent' : 'none',
@@ -228,7 +261,7 @@ const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editi
                                             onMouseLeave={e => { if (onRename) e.target.style.borderBottomColor = 'transparent'; }}
                                             title={onRename ? 'Click to rename' : ''}
                                         >
-                                            {playerNames?.[i] || `Player ${i}`}
+                                            {isWinner ? '🏆 ' : ''}{playerNames?.[i] || `Player ${i}`}
                                         </span>
                                     )}
                                     <div style={{ fontSize: '10px', fontWeight: 'normal', color: '#888' }}>
@@ -246,7 +279,7 @@ const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editi
                         const dealerId = roundIdx % numPlayers;
 
                         return (
-                            <tr key={roundIdx} style={{ background: isCurrentRound ? '#fff9c4' : 'transparent' }}>
+                            <tr key={roundIdx} style={{ background: isCurrentRound && !isGameOver ? '#fff9c4' : 'transparent' }}>
                                 <td style={{ border: '1px solid #ddd', padding: '5px', fontWeight: 'bold' }}>
                                     {rank} <span style={{ fontSize: '10px', color: '#999' }} title="Dealer">({playerNames?.[dealerId]?.[0] || dealerId})</span>
                                 </td>
@@ -259,7 +292,7 @@ const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editi
                                     }
 
                                     const roundScore = roundHistory?.scores[pId];
-                                    const isWinner = roundHistory?.winner === String(pId);
+                                    const isRoundWinner = roundHistory?.winner === String(pId);
 
                                     return (
                                         <td key={pId} style={{ border: '1px solid #ddd', padding: '5px', position: 'relative' }}>
@@ -267,11 +300,11 @@ const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editi
                                                 <>
                                                     <span style={{ fontSize: '16px' }}>{runningTotal}</span>
                                                     <sup style={{ color: '#e74c3c', marginLeft: '2px', fontWeight: 'bold' }}>
-                                                        {isWinner ? '🏆' : `+${roundScore}`}
+                                                        {isRoundWinner ? <span style={{ color: '#27ae60', fontWeight: 'bold' }}>0</span> : `+${roundScore}`}
                                                     </sup>
                                                 </>
                                             ) : (
-                                                isCurrentRound ? '...' : ''
+                                                isCurrentRound && !isGameOver ? '...' : ''
                                             )}
                                         </td>
                                     );
@@ -283,11 +316,30 @@ const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editi
                 <tfoot>
                     <tr style={{ background: '#eee', fontWeight: 'bold' }}>
                         <td style={{ border: '1px solid #ddd', padding: '8px' }}>Total</td>
-                        {Array.from({ length: numPlayers }).map((_, i) => (
-                            <td key={i} style={{ border: '1px solid #ddd', padding: '8px', fontSize: '18px' }}>
-                                {G.players[i].score}
-                            </td>
-                        ))}
+                        {Array.from({ length: numPlayers }).map((_, i) => {
+                            const isWinner = isGameOver && rankings?.[i] === 0;
+                            const rank = rankings?.[i];
+                            return (
+                                <td key={i} style={{
+                                    border: '1px solid #ddd', padding: '8px', fontSize: '18px',
+                                    background: isWinner ? '#fff8e1' : undefined,
+                                    color: isWinner ? '#d4a017' : undefined,
+                                }}>
+                                    {G.players[i].score}
+                                    {isGameOver && rank != null && (
+                                        <div style={{
+                                            display: 'inline-block', marginLeft: '6px',
+                                            padding: '1px 6px', borderRadius: '10px', fontSize: '10px',
+                                            fontWeight: 'bold', verticalAlign: 'middle',
+                                            background: rank === 0 ? '#f1c40f' : rank === 1 ? '#bdc3c7' : rank === 2 ? '#cd7f32' : '#e0e0e0',
+                                            color: rank <= 2 ? 'white' : '#666',
+                                        }}>
+                                            {ORDINAL_LABELS[rank] || `${rank + 1}th`}
+                                        </div>
+                                    )}
+                                </td>
+                            );
+                        })}
                     </tr>
                 </tfoot>
             </table>
@@ -438,7 +490,7 @@ const Board = (props) => {
     };
     const [dragIndex, setDragIndex] = React.useState(null);
     const [dropTarget, setDropTarget] = React.useState(null);
-    const [scoreDrawerOpen, setScoreDrawerOpen] = React.useState(false);
+    const [scoreDrawerOpen, setScoreDrawerOpen] = React.useState(true);
     const [scoreboardWidth, setScoreboardWidth] = React.useState(600);
     const isDraggingDivider = React.useRef(false);
     // Layoff target picker: { cardIndex, targets: [{ meldIndex, position }] } or null
@@ -474,6 +526,22 @@ const Board = (props) => {
         // Also remove bullet flag from chat stream
         setChatMessages(prev => prev.map(m => m.id === bulletId ? { ...m, isBullet: false } : m));
     };
+
+    // Detect flip shuffles and auto-post chat message
+    const prevFlipCountRef = React.useRef(G.flipCount);
+    const prevRoundRef = React.useRef(G.round);
+    React.useEffect(() => {
+        if (G.round !== prevRoundRef.current) {
+            // Round changed — reset tracking
+            prevFlipCountRef.current = 0;
+            prevRoundRef.current = G.round;
+        }
+        if (G.flipCount > prevFlipCountRef.current) {
+            const currentPlayer = ctx.currentPlayer;
+            sendChat(currentPlayer, `Draw deck flip shuffled during round ${G.round + 1}`);
+            prevFlipCountRef.current = G.flipCount;
+        }
+    }, [G.flipCount, G.round]);
 
     const getPlayerName = (id) => G.playerNames?.[String(id)] || `Player ${id}`;
     const nameInputRef = React.useRef(null);
@@ -815,17 +883,71 @@ const Board = (props) => {
             {gameOver && (
                 <div style={{
                     background: 'linear-gradient(135deg, #2c3e50, #34495e)',
-                    color: 'white', padding: '20px 30px', textAlign: 'center',
+                    color: 'white', padding: '10px 30px', textAlign: 'center',
                     borderBottom: '4px solid #f1c40f',
                 }}>
-                    <h2 style={{ margin: '0 0 10px', fontSize: '28px', letterSpacing: '3px', color: '#f1c40f' }}>
-                        GAME OVER
-                    </h2>
-                    <div style={{ fontSize: '20px', marginBottom: '12px' }}>
-                        {winners.length === 1 ? (
-                            <span>{getPlayerName(winners[0])} wins!</span>
-                        ) : (
-                            <span>Tie: {winners.map(id => getPlayerName(id)).join(' & ')}!</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                        <h2 style={{ margin: 0, fontSize: '28px', letterSpacing: '3px', color: '#f1c40f' }}>
+                            GAME OVER
+                        </h2>
+                        <span style={{ fontSize: '20px' }}>
+                            {winners.length === 1 ? (
+                                <span>{getPlayerName(winners[0])} wins!</span>
+                            ) : (
+                                <span>Tie: {winners.map(id => getPlayerName(id)).join(' & ')}!</span>
+                            )}
+                        </span>
+                        {log && props.gameSeed && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <button
+                                    onClick={() => {
+                                        const replayData = buildReplayData({
+                                            seed: props.gameSeed,
+                                            gameConfig: {
+                                                numPlayers: ctx.numPlayers,
+                                                rules: G.rules,
+                                                playerNames: G.playerNames,
+                                            },
+                                            log,
+                                            chatMessages: includeChatInReplay ? chatMessages : undefined,
+                                            bulletMessages: bulletMessages.length > 0 ? bulletMessages : undefined,
+                                        });
+                                        downloadReplay(replayData);
+                                    }}
+                                    style={{
+                                        padding: '5px 16px', borderRadius: '6px', border: '2px solid #f1c40f',
+                                        background: 'transparent', color: '#f1c40f', cursor: 'pointer',
+                                        fontSize: '14px', fontWeight: 'bold',
+                                    }}
+                                >Save Replay</button>
+                                {chatMessages.length > 0 && (
+                                    <label style={{ color: '#bdc3c7', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <input type="checkbox" checked={includeChatInReplay} onChange={e => setIncludeChatInReplay(e.target.checked)} />
+                                        Include Chat
+                                    </label>
+                                )}
+                                {props.onNewGame && (
+                                    <button
+                                        onClick={props.onNewGame}
+                                        style={{
+                                            padding: '5px 16px', borderRadius: '6px', border: '2px solid #27ae60',
+                                            background: '#27ae60', color: 'white', cursor: 'pointer',
+                                            fontSize: '14px', fontWeight: 'bold',
+                                        }}
+                                    >New Game</button>
+                                )}
+                            </div>
+                        )}
+                        {/* Flip/reshuffle stats (debug) */}
+                        {G.flipHistory && G.flipHistory.some(f => f > 0) && (
+                            <div style={{
+                                background: 'rgba(255,255,255,0.1)', borderRadius: '6px',
+                                padding: '2px 10px', fontSize: '11px', color: '#95a5a6',
+                                marginLeft: 'auto', whiteSpace: 'nowrap',
+                            }}>
+                                Reshuffles: {G.flipHistory.reduce((a, b) => a + b, 0)} total
+                                ({G.flipHistory.map((f, i) => f > 0 ? `R${i + 1}:${f}` : null).filter(Boolean).join(', ')})
+                            </div>
                         )}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap' }}>
@@ -847,42 +969,9 @@ const Board = (props) => {
                             );
                         })}
                     </div>
-                    <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
-                        {log && props.gameSeed && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <button
-                                    onClick={() => {
-                                        const replayData = buildReplayData({
-                                            seed: props.gameSeed,
-                                            gameConfig: {
-                                                numPlayers: ctx.numPlayers,
-                                                rules: G.rules,
-                                                playerNames: G.playerNames,
-                                            },
-                                            log,
-                                            chatMessages: includeChatInReplay ? chatMessages : undefined,
-                                            bulletMessages: bulletMessages.length > 0 ? bulletMessages : undefined,
-                                        });
-                                        downloadReplay(replayData);
-                                    }}
-                                    style={{
-                                        padding: '8px 20px', borderRadius: '6px', border: '2px solid #f1c40f',
-                                        background: 'transparent', color: '#f1c40f', cursor: 'pointer',
-                                        fontSize: '14px', fontWeight: 'bold',
-                                    }}
-                                >Save Replay</button>
-                                {chatMessages.length > 0 && (
-                                    <label style={{ color: '#bdc3c7', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <input type="checkbox" checked={includeChatInReplay} onChange={e => setIncludeChatInReplay(e.target.checked)} />
-                                        Include Chat
-                                    </label>
-                                )}
-                            </div>
-                        )}
-                    </div>
                 </div>
             )}
-            <div style={{ display: 'flex', fontFamily: '"Arial", sans-serif', marginRight: '310px' }}>
+            <div style={{ display: 'flex', fontFamily: '"Arial", sans-serif', marginRight: props.onNewGame ? 0 : '310px' }}>
                 {/* Main game area */}
                 <div style={{ flex: 1, minWidth: 0, padding: '8px 20px 20px' }}>
                 <div>
@@ -938,6 +1027,7 @@ const Board = (props) => {
                                 currentPlayer={ctx.currentPlayer}
                                 playerID={playerID}
                                 playerNames={G.playerNames}
+                                dealer={ctx.gameover ? null : G.round % ctx.numPlayers}
                             />
                         </div>
 
@@ -1448,7 +1538,7 @@ const Board = (props) => {
                         onClick={() => setScoreDrawerOpen(true)}
                         title="Open Scoreboard"
                         style={{
-                            position: 'fixed', right: '310px', top: '120px', zIndex: 10,
+                            position: 'fixed', right: props.onNewGame ? 0 : '310px', top: '120px', zIndex: 10,
                             width: '24px', height: '48px', cursor: 'pointer',
                             background: '#3498db', borderRadius: '6px 0 0 6px',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1468,10 +1558,13 @@ const Board = (props) => {
                                 isDraggingDivider.current = true;
                                 const startX = e.clientX;
                                 const startWidth = scoreboardWidth;
+                                const debugPanelWidth = props.onNewGame ? 0 : 310;
+                                const minGameArea = 350; // ~4 cards + padding
                                 const onMouseMove = (ev) => {
                                     if (!isDraggingDivider.current) return;
                                     const delta = startX - ev.clientX;
-                                    setScoreboardWidth(Math.max(300, Math.min(900, startWidth + delta)));
+                                    const maxWidth = window.innerWidth - debugPanelWidth - minGameArea;
+                                    setScoreboardWidth(Math.max(300, Math.min(maxWidth, startWidth + delta)));
                                 };
                                 const onMouseUp = () => {
                                     isDraggingDivider.current = false;
@@ -1511,7 +1604,13 @@ const Board = (props) => {
                             >
                                 <span style={{ color: 'white', fontSize: '16px', lineHeight: 1 }}>&#9654;</span>
                             </div>
-                            <h3 style={{ margin: '0 0 10px' }}>Scoreboard</h3>
+                            <h3 style={{ margin: '0 0 10px' }}>Scoreboard
+                                {(() => { const d = Math.ceil(ctx.numPlayers / 5); return (
+                                    <span style={{ fontWeight: 'normal', fontSize: '11px', color: '#888', marginLeft: '8px' }}>
+                                        {d} {d === 1 ? 'deck' : 'decks'} ({d * 52} cards)
+                                    </span>
+                                ); })()}
+                            </h3>
                             <Scoreboard G={G} numPlayers={ctx.numPlayers} playerNames={G.playerNames} currentPlayer={ctx.currentPlayer}
                                 onRename={(id) => startEditName(String(id))}
                                 editingNameId={editingNameId}
@@ -1541,13 +1640,15 @@ const Board = (props) => {
 const Lobby = ({ onStart, onReplay }) => {
     const fileInputRef = React.useRef(null);
     const [players, setPlayers] = React.useState([
-        { name: '' },
-        { name: '' },
+        { name: '', isBot: false, botLevel: 'advanced' },
+        { name: '', isBot: false, botLevel: 'advanced' },
     ]);
     const [rules, setRules] = React.useState({ allowAdjacentWilds: false, allowLargeSets: false, mustPlayDiscardPickup: false, hintLayoff: false, hintSwapWild: false });
+    const [botDelay, setBotDelay] = React.useState(2);
+    const [devSeed, setDevSeed] = React.useState('');
 
     const addPlayer = () => {
-        if (players.length < 8) setPlayers([...players, { name: '' }]);
+        if (players.length < 8) setPlayers([...players, { name: '', isBot: false, botLevel: 'advanced' }]);
     };
     const removePlayer = (idx) => {
         if (players.length > 2) setPlayers(players.filter((_, i) => i !== idx));
@@ -1555,6 +1656,38 @@ const Lobby = ({ onStart, onReplay }) => {
     const updateName = (idx, name) => {
         setPlayers(players.map((p, i) => i === idx ? { ...p, name } : p));
     };
+    const toggleBot = (idx) => {
+        setPlayers(players.map((p, i) => {
+            if (i !== idx) return p;
+            const isBot = !p.isBot;
+            const usedNames = players.filter((pp, j) => j !== idx && pp.isBot).map(pp => pp.name);
+            const name = isBot ? pickBotNames(1, usedNames)[0] || `Bot ${idx}` : '';
+            return { ...p, isBot, name, botLevel: p.botLevel || 'average' };
+        }));
+    };
+    const setBotLevel = (idx, level) => {
+        setPlayers(players.map((p, i) => i === idx ? { ...p, botLevel: level } : p));
+    };
+    const fillWithBots = () => {
+        const usedNames = players.filter(p => p.isBot).map(p => p.name);
+        const humanNames = players.filter(p => !p.isBot && p.name.trim()).map(p => p.name.trim());
+        // Fill empty slots, ensure at least 4 players
+        let newPlayers = [...players];
+        while (newPlayers.length < 4) {
+            newPlayers.push({ name: '', isBot: false, botLevel: 'advanced' });
+        }
+        const botsNeeded = [];
+        newPlayers.forEach((p, i) => {
+            if (!p.isBot && !p.name.trim()) botsNeeded.push(i);
+        });
+        const names = pickBotNames(botsNeeded.length, [...usedNames, ...humanNames]);
+        botsNeeded.forEach((idx, j) => {
+            newPlayers[idx] = { name: names[j] || `Bot ${idx}`, isBot: true, botLevel: 'advanced' };
+        });
+        setPlayers(newPlayers);
+    };
+
+    const hasBots = players.some(p => p.isBot);
 
     return (
         <div style={{ padding: '40px', fontFamily: '"Arial", sans-serif', maxWidth: '500px', margin: '0 auto' }}>
@@ -1571,7 +1704,23 @@ const Lobby = ({ onStart, onReplay }) => {
             <h2 style={{ color: '#666', textAlign: 'center', fontWeight: 'normal' }}>Game Setup</h2>
 
             <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '10px', marginBottom: '20px' }}>
-                <h3 style={{ margin: '0 0 15px 0' }}>Players ({players.length})</h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '15px' }}>
+                    <h3 style={{ margin: 0 }}>Players ({players.length})
+                        {(() => { const d = Math.ceil(players.length / 5); return (
+                            <span style={{ fontWeight: 'normal', fontSize: '12px', color: '#888', marginLeft: '8px' }}>
+                                {d} {d === 1 ? 'deck' : 'decks'} ({d * 52} cards)
+                            </span>
+                        ); })()}
+                    </h3>
+                    <button
+                        onClick={fillWithBots}
+                        style={{
+                            padding: '5px 12px', border: '1px solid #8e44ad', borderRadius: '6px',
+                            background: '#f5eef8', color: '#8e44ad', cursor: 'pointer', fontSize: '12px',
+                            fontWeight: 'bold',
+                        }}
+                    >Fill with Bots</button>
+                </div>
                 {players.map((p, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                         <span style={{ width: '24px', fontWeight: 'bold', color: '#999', textAlign: 'right' }}>{i}</span>
@@ -1581,13 +1730,46 @@ const Lobby = ({ onStart, onReplay }) => {
                             value={p.name}
                             onChange={(e) => updateName(i, e.target.value)}
                             maxLength={25}
+                            readOnly={p.isBot}
                             style={{
                                 flex: 1, padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px',
                                 fontSize: '14px', outline: 'none',
+                                background: p.isBot ? '#f5eef8' : 'white',
+                                color: p.isBot ? '#8e44ad' : 'inherit',
                             }}
                             onFocus={(e) => e.target.style.borderColor = '#3498db'}
                             onBlur={(e) => e.target.style.borderColor = '#ddd'}
                         />
+                        <label
+                            title="Toggle bot"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer',
+                                fontSize: '11px', color: p.isBot ? '#8e44ad' : '#aaa', fontWeight: 'bold',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={p.isBot}
+                                onChange={() => toggleBot(i)}
+                                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                            />
+                            Bot
+                        </label>
+                        {p.isBot && (
+                            <select
+                                value={p.botLevel}
+                                onChange={(e) => setBotLevel(i, e.target.value)}
+                                style={{
+                                    padding: '4px 6px', border: '1px solid #ccc', borderRadius: '4px',
+                                    fontSize: '12px', background: 'white', cursor: 'pointer',
+                                }}
+                            >
+                                <option value="newbie">Newbie</option>
+                                <option value="average">Average</option>
+                                <option value="advanced">Advanced</option>
+                            </select>
+                        )}
                         {players.length > 2 && (
                             <button
                                 onClick={() => removePlayer(i)}
@@ -1609,6 +1791,22 @@ const Lobby = ({ onStart, onReplay }) => {
                             marginTop: '4px',
                         }}
                     >+ Add Player</button>
+                )}
+
+                {hasBots && (
+                    <div style={{ marginTop: '12px', padding: '10px', background: '#fff', borderRadius: '6px', border: '1px solid #e8daef' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#555' }}>
+                            <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>Bot Delay:</span>
+                            <input
+                                type="range"
+                                min={0} max={7} step={0.5}
+                                value={botDelay}
+                                onChange={(e) => setBotDelay(parseFloat(e.target.value))}
+                                style={{ flex: 1, cursor: 'pointer' }}
+                            />
+                            <span style={{ minWidth: '30px', textAlign: 'right', fontWeight: 'bold' }}>{botDelay}s</span>
+                        </label>
+                    </div>
                 )}
             </div>
 
@@ -1667,7 +1865,11 @@ const Lobby = ({ onStart, onReplay }) => {
                     players.forEach((p, i) => {
                         if (p.name.trim()) playerNames[i] = p.name.trim();
                     });
-                    onStart({ numPlayers: players.length, playerNames, rules });
+                    const bots = {};
+                    players.forEach((p, i) => {
+                        if (p.isBot) bots[String(i)] = { level: p.botLevel };
+                    });
+                    onStart({ numPlayers: players.length, playerNames, rules, bots, botDelay, seed: devSeed || undefined });
                 }}
                 style={{
                     width: '100%', padding: '14px', border: 'none', borderRadius: '8px',
@@ -1676,34 +1878,48 @@ const Lobby = ({ onStart, onReplay }) => {
                 }}
             >Start Game</button>
 
-            {import.meta.env.DEV && onReplay && (
-                <>
+            {import.meta.env.DEV && (
+                <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
                     <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".json"
-                        style={{ display: 'none' }}
-                        onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            try {
-                                const data = await loadReplayFile(file);
-                                onReplay(data);
-                            } catch (err) {
-                                alert('Failed to load replay: ' + err.message);
-                            }
-                            e.target.value = '';
+                        type="text"
+                        placeholder="Seed (optional)"
+                        value={devSeed}
+                        onChange={(e) => setDevSeed(e.target.value.trim())}
+                        style={{
+                            flex: 1, padding: '8px 12px', border: '2px dashed #888', borderRadius: '8px',
+                            fontSize: '13px', color: '#555', outline: 'none',
                         }}
                     />
-                    <button
-                        onClick={() => fileInputRef.current?.click()}
-                        style={{
-                            width: '100%', padding: '12px', border: '2px dashed #888', borderRadius: '8px',
-                            background: 'transparent', color: '#888', fontSize: '14px', fontWeight: 'bold',
-                            cursor: 'pointer', marginTop: '12px',
-                        }}
-                    >Replay Prior Game</button>
-                </>
+                    {onReplay && (
+                        <>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".json"
+                                style={{ display: 'none' }}
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    try {
+                                        const data = await loadReplayFile(file);
+                                        onReplay(data);
+                                    } catch (err) {
+                                        alert('Failed to load replay: ' + err.message);
+                                    }
+                                    e.target.value = '';
+                                }}
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                style={{
+                                    padding: '8px 16px', border: '2px dashed #888', borderRadius: '8px',
+                                    background: 'transparent', color: '#888', fontSize: '13px', fontWeight: 'bold',
+                                    cursor: 'pointer', whiteSpace: 'nowrap',
+                                }}
+                            >Replay</button>
+                        </>
+                    )}
+                </div>
             )}
         </div>
     );
@@ -1819,6 +2035,63 @@ const ReplayBoard = ({ replayData, onExit }) => {
     );
 };
 
+/** Wrapper for manual-client mode (used when bots are present) */
+const ManualGameBoard = ({ gameConfig, onNewGame }) => {
+    const clientRef = React.useRef(null);
+    const seedRef = React.useRef(null);
+    const [gameState, setGameState] = React.useState(null);
+
+    if (!clientRef.current) {
+        const seed = gameConfig.seed || Date.now().toString(36).slice(-10);
+        seedRef.current = seed;
+        const game = createGame({
+            rules: gameConfig.rules,
+            playerNames: gameConfig.playerNames,
+            seed,
+        });
+        const client = BGClient({ game, numPlayers: gameConfig.numPlayers, playerID: '0' });
+        client.start();
+        clientRef.current = client;
+    }
+
+    React.useEffect(() => {
+        const client = clientRef.current;
+        if (!client) return;
+        const unsub = client.subscribe(state => {
+            if (state) setGameState({ ...state });
+        });
+        // Get initial state
+        const initial = client.getState();
+        if (initial) setGameState({ ...initial });
+        return () => { unsub(); client.stop(); };
+    }, []);
+
+    if (!gameState) return <div>Loading...</div>;
+
+    return (
+        <div style={{ display: 'flex', fontFamily: '"Arial", sans-serif' }}>
+            <div style={{ flex: 1, minWidth: 0, padding: '8px 20px 20px' }}>
+                <Board
+                    G={gameState.G}
+                    ctx={gameState.ctx}
+                    moves={clientRef.current.moves}
+                    playerID="0"
+                    log={gameState.log || []}
+                    gameSeed={seedRef.current}
+                    isActive={gameState.ctx?.currentPlayer === '0'}
+                    onNewGame={onNewGame}
+                />
+            </div>
+            <BotController
+                client={clientRef.current}
+                botConfigs={gameConfig.bots}
+                botDelay={gameConfig.botDelay}
+                humanPlayerID="0"
+            />
+        </div>
+    );
+};
+
 const App = () => {
     const [gameConfig, setGameConfig] = React.useState(null);
     const [replayData, setReplayData] = React.useState(null);
@@ -1833,15 +2106,23 @@ const App = () => {
         return <Lobby onStart={setGameConfig} onReplay={setReplayData} />;
     }
 
+    // Check if any bots are configured
+    const hasBots = gameConfig.bots && Object.keys(gameConfig.bots).length > 0;
+
+    if (hasBots) {
+        return <ManualGameBoard gameConfig={gameConfig} onNewGame={() => { clientRef.current = null; setGameConfig(null); }} />;
+    }
+
+    // No bots — use React Client wrapper with debug panel
     if (!clientRef.current) {
-        const seed = Date.now().toString(36).slice(-10);
+        const seed = gameConfig.seed || Date.now().toString(36).slice(-10);
         seedRef.current = seed;
         const game = createGame({
             rules: gameConfig.rules,
             playerNames: gameConfig.playerNames,
             seed,
         });
-        clientRef.current = Client({
+        clientRef.current = ReactClient({
             game,
             board: Board,
             numPlayers: gameConfig.numPlayers,
@@ -1852,7 +2133,7 @@ const App = () => {
     const GameClient = clientRef.current;
     return (
         <div>
-            <GameClient playerID="0" gameSeed={seedRef.current} />
+            <GameClient playerID="0" gameSeed={seedRef.current} onNewGame={() => { clientRef.current = null; setGameConfig(null); }} />
         </div>
     );
 };

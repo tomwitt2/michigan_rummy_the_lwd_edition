@@ -104,9 +104,28 @@ export function BotController({ client, botConfigs, botDelay, humanPlayerID }) {
             timeoutRef.current = setTimeout(doNextAction, getDelayMs());
         }
 
+        // Auto-vote for bots when a vote-to-end-round is active
+        function checkBotVotes() {
+            const s = client.getState();
+            if (!s || !s.G || s.ctx.gameover) return;
+            if (s.G.flipCount === 0) return;
+            // Only auto-vote if any human has voted
+            const humanVoted = Object.entries(s.G.votes || {}).some(
+                ([id, v]) => v && !botConfigsRef.current[id]
+            );
+            if (!humanVoted) return;
+            // Cast votes for all bots that haven't voted yet
+            for (const [botID, config] of Object.entries(botConfigsRef.current)) {
+                if (config && !s.G.votes?.[botID]) {
+                    client.moves.voteEndRound({ voterID: botID });
+                }
+            }
+        }
+
         // Subscribe to state changes
         const unsub = client.subscribe(() => {
             if (!actingRef.current) {
+                checkBotVotes();
                 tryStartBotTurn();
             }
         });

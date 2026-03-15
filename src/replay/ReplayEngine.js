@@ -13,7 +13,7 @@ export class ReplayEngine {
      */
     constructor(replayData) {
         this.replayData = replayData;
-        this.actions = replayData.log.filter(a => !a.automatic);
+        this.actions = replayData.log.filter(a => !a.automatic && a.type !== 'GAME_EVENT');
         this.currentStep = -1; // before any action
         this.snapshots = []; // cached state snapshots for fast backward nav
 

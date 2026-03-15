@@ -532,9 +532,13 @@ const Board = (props) => {
         const handleKeyDown = (e) => {
             // Don't fire shortcuts while any text input is focused
             const tag = document.activeElement?.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
             const key = e.key.toLowerCase();
             const sel = selectedRef.current;
+            // Stop single-letter keys from propagating to the boardgame.io debug panel
+            if (key.length === 1) {
+                e.stopPropagation();
+            }
 
             // DRAW PILE ('n' — new card)
             if (key === 'n' && !G.hasDrawn && isMyTurn) {
@@ -637,21 +641,12 @@ const Board = (props) => {
             if (e.key === 'Tab' && import.meta.env.DEV) {
                 e.preventDefault();
                 const nextPlayer = String((parseInt(playerID) + 1) % ctx.numPlayers);
-                const btns = document.querySelectorAll('[class*="debug"] button, [data-testid="playerID"] option');
-                // Try to find and click the player radio/button in bgio debug panel
-                for (const btn of document.querySelectorAll('button')) {
-                    if (btn.textContent.trim() === nextPlayer && btn.closest('[class*="debug"], [class*="panel"]')) {
+                // boardgame.io debug panel renders player buttons as:
+                //   <button class="player svelte-19aan9p">0</button>
+                for (const btn of document.querySelectorAll('button.player.svelte-19aan9p')) {
+                    if (btn.textContent.trim() === nextPlayer) {
                         btn.click();
-                        return;
-                    }
-                }
-                // Fallback: find the select/radio in the debug panel
-                const selects = document.querySelectorAll('select');
-                for (const sel of selects) {
-                    const opts = Array.from(sel.options).map(o => o.value);
-                    if (opts.includes('0') && opts.includes('1')) {
-                        sel.value = nextPlayer;
-                        sel.dispatchEvent(new Event('change', { bubbles: true }));
+                        document.activeElement?.blur();
                         return;
                     }
                 }
@@ -939,13 +934,13 @@ const Board = (props) => {
                                 {/* Draw Pile card */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <div
-                                        onClick={() => { if (isMyTurn && !G.hasDrawn) moves.drawCard(true); }}
+                                        onClick={() => { if (!G.hasDrawn) moves.drawCard(true); }}
                                         title={`Draw Pile (n) — ${G.deck.length} cards`}
                                         style={{
                                             width: '48px', height: '68px', borderRadius: '5px',
                                             border: '1px solid #999',
                                             background: 'linear-gradient(135deg, #1a5276 0%, #2471a3 40%, #1a5276 60%, #154360 100%)',
-                                            cursor: isMyTurn && !G.hasDrawn ? 'pointer' : 'default',
+                                            cursor: !G.hasDrawn ? 'pointer' : 'default',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             boxShadow: '1px 1px 3px rgba(0,0,0,0.2)',
                                             position: 'relative',
@@ -956,6 +951,7 @@ const Board = (props) => {
                                             width: '38px', height: '58px', borderRadius: '3px',
                                             border: '1px solid rgba(255,255,255,0.3)',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            pointerEvents: 'none',
                                         }}>
                                             <div style={{
                                                 width: '30px', height: '50px', borderRadius: '2px',
@@ -976,23 +972,23 @@ const Board = (props) => {
                                         const topCard = G.discardPile?.length > 0 ? G.discardPile[G.discardPile.length - 1] : null;
                                         return (
                                             <div
-                                                onClick={() => { if (isMyTurn && !G.hasDrawn && topCard) moves.drawCard(false); }}
+                                                onClick={() => { if (!G.hasDrawn && topCard) moves.drawCard(false); }}
                                                 title={topCard ? `Discard Pile (o) — ${topCard.rank}${SUIT_ICONS[topCard.suit]} (${G.discardPile.length} cards)` : 'Discard Pile — Empty'}
                                                 style={{
                                                     width: '48px', height: '68px', borderRadius: '5px',
                                                     border: topCard ? '1px solid #ccc' : '1px dashed #bbb',
                                                     background: topCard ? 'white' : '#f5f5f5',
-                                                    cursor: isMyTurn && !G.hasDrawn && topCard ? 'pointer' : 'default',
+                                                    cursor: !G.hasDrawn && topCard ? 'pointer' : 'default',
                                                     display: 'flex', flexDirection: 'column',
                                                     alignItems: 'center', justifyContent: 'center',
                                                     boxShadow: topCard ? '1px 1px 3px rgba(0,0,0,0.15)' : 'none',
                                                 }}
                                             >
                                                 {topCard ? (<>
-                                                    <div style={{ fontSize: '16px', fontWeight: 'bold', lineHeight: 1 }}>{topCard.rank}</div>
-                                                    <div style={{ fontSize: '22px', color: SUIT_COLORS[topCard.suit], lineHeight: 1 }}>{SUIT_ICONS[topCard.suit]}</div>
+                                                    <div style={{ fontSize: '16px', fontWeight: 'bold', lineHeight: 1, pointerEvents: 'none' }}>{topCard.rank}</div>
+                                                    <div style={{ fontSize: '22px', color: SUIT_COLORS[topCard.suit], lineHeight: 1, pointerEvents: 'none' }}>{SUIT_ICONS[topCard.suit]}</div>
                                                 </>) : (
-                                                    <div style={{ color: '#ccc', fontSize: '20px', lineHeight: 1 }}>&#x2205;</div>
+                                                    <div style={{ color: '#ccc', fontSize: '20px', lineHeight: 1, pointerEvents: 'none' }}>&#x2205;</div>
                                                 )}
                                             </div>
                                         );

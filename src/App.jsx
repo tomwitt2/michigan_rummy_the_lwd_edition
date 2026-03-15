@@ -950,25 +950,6 @@ const Board = (props) => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                             <h3 style={{ margin: 0, fontSize: '14px' }}>Your Hand ({player.hand.length} cards)</h3>
                             <span style={{ fontSize: '11px', color: '#999' }}>Click cards in order for runs.</span>
-                            <span style={{ flex: 1 }} />
-                            <span
-                                onClick={() => setWildSortMode(m => m === 'in-place' ? 'left' : m === 'left' ? 'right' : 'in-place')}
-                                title={`Wild sort: ${wildSortMode === 'left' ? 'wilds sort to left' : wildSortMode === 'right' ? 'wilds sort to right' : 'wilds sort in place'}\nClick to cycle`}
-                                style={{
-                                    fontSize: '11px', cursor: 'pointer', userSelect: 'none',
-                                    padding: '1px 6px', borderRadius: '4px', border: '1px solid #dbb',
-                                    background: wildSortMode === 'in-place' ? '#f0f0f0' : '#fff9c4',
-                                    color: '#666', fontWeight: 'bold',
-                                }}
-                            >W: {wildSortMode === 'left' ? '◀' : wildSortMode === 'right' ? '▶' : '—'} (c)</span>
-                            <button
-                                onClick={sortHand}
-                                title="Sort hand by rank (held cards stay in place)"
-                                style={{
-                                    padding: '2px 8px', borderRadius: '4px', border: '1px solid #bbb',
-                                    background: '#f0f0f0', color: '#555', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold',
-                                }}
-                            >Sort Cards (s)</button>
                         </div>
                         <div
                             style={{ background: '#f5f5f5', padding: '8px 12px', borderRadius: '8px' }}
@@ -1025,6 +1006,27 @@ const Board = (props) => {
                                         />
                                     </div>
                                 ))}
+                            </div>
+                            {/* Sort controls — below cards, left-aligned */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                                <span
+                                    onClick={() => setWildSortMode(m => m === 'in-place' ? 'left' : m === 'left' ? 'right' : 'in-place')}
+                                    title={`Wild sort: ${wildSortMode === 'left' ? 'wilds sort to left' : wildSortMode === 'right' ? 'wilds sort to right' : 'wilds sort in place'}\nClick to cycle`}
+                                    style={{
+                                        fontSize: '11px', cursor: 'pointer', userSelect: 'none',
+                                        padding: '1px 6px', borderRadius: '4px', border: '1px solid #dbb',
+                                        background: wildSortMode === 'in-place' ? '#f0f0f0' : '#fff9c4',
+                                        color: '#666', fontWeight: 'bold',
+                                    }}
+                                >Wild Placement: {wildSortMode === 'left' ? '◀' : wildSortMode === 'right' ? '▶' : '—'} (c)</span>
+                                <button
+                                    onClick={sortHand}
+                                    title="Sort hand by rank"
+                                    style={{
+                                        padding: '2px 8px', borderRadius: '4px', border: '1px solid #bbb',
+                                        background: '#f0f0f0', color: '#555', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold',
+                                    }}
+                                >Sort Cards (s)</button>
                             </div>
                         </div>
 

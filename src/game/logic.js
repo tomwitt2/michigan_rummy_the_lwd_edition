@@ -268,16 +268,15 @@ const LWDRummyBase = {
             G.playedCardThisTurn = snapshot.playedCardThisTurn;
         },
 
-        voteEndRound: ({ G, ctx }) => {
+        voteEndRound: ({ G, ctx }, { voterID } = {}) => {
             if (G.flipCount === 0) return;
-            const pid = ctx.currentPlayer;
+            // Allow specifying a voter (for bot auto-votes), default to current player
+            const pid = voterID != null ? String(voterID) : ctx.currentPlayer;
             G.votes[pid] = !G.votes[pid];
 
             // Majority Check
             const totalVotes = Object.values(G.votes).filter(v => v).length;
             if (totalVotes > ctx.numPlayers / 2) {
-                // Trigger round end scoring
-                // We'll let the turn/move system handle the actual end by setting a flag or using events
                 G.forceEndRound = true;
             }
         },

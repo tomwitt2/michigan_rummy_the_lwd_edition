@@ -75,7 +75,17 @@ export class ReplayEngine {
     jumpTo(targetStep) {
         if (targetStep < -1 || targetStep >= this.actions.length) return;
         if (targetStep === this.currentStep) return;
-        this._replayTo(targetStep);
+
+        if (targetStep > this.currentStep) {
+            // Fast forward from current position
+            for (let i = this.currentStep + 1; i <= targetStep; i++) {
+                this.currentStep = i;
+                this.client.store.dispatch(this.actions[i]);
+            }
+            this.snapshots[this.currentStep + 1] = this._captureState();
+        } else {
+            this._replayTo(targetStep);
+        }
     }
 
     /** Internal: rebuild state up to targetStep by replaying from start */

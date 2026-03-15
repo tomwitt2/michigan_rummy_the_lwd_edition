@@ -89,7 +89,12 @@ function newbieDecide(G, ctx, playerID) {
 
     // Step 3: Skip layoffs and wild swaps
 
-    // Step 4: Discard random card
+    // Step 4: Vote to end round if offered
+    if (G.flipCount > 0 && !G.votes?.[playerID]) {
+        return { action: 'voteEndRound', args: [] };
+    }
+
+    // Step 5: Discard random card
     if (player.hand.length > 0) {
         const idx = Math.floor(Math.random() * player.hand.length);
         return { action: 'discardCard', args: [idx] };
@@ -144,7 +149,12 @@ function averageDecide(G, ctx, playerID) {
 
     // Step 4: Skip wild swaps
 
-    // Step 5: Discard — highest value card not part of a partial meld
+    // Step 5: Vote to end round if offered
+    if (G.flipCount > 0 && !G.votes?.[playerID]) {
+        return { action: 'voteEndRound', args: [] };
+    }
+
+    // Step 6: Discard — highest value card not part of a partial meld
     return discardSmart(player.hand, G.round);
 }
 
@@ -221,12 +231,9 @@ function advancedDecide(G, ctx, playerID) {
         }
     }
 
-    // Step 5: Vote to end round if hand value is low and deck has been reshuffled
+    // Step 5: Vote to end round if offered
     if (G.flipCount > 0 && !G.votes?.[playerID]) {
-        const hv = handValue(player.hand, G.round);
-        if (hv <= 15) {
-            return { action: 'voteEndRound', args: [] };
-        }
+        return { action: 'voteEndRound', args: [] };
     }
 
     // Step 6: Strategic discard

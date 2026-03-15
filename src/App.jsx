@@ -135,7 +135,7 @@ class ErrorBoundary extends React.Component {
     }
 }
 
-const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames, dealer }) => {
+const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames, dealer, firstPlayer }) => {
     const size = 110;
     const center = size / 2;
     const radius = 38;
@@ -151,9 +151,10 @@ const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames, dealer })
         const isActive = String(i) === String(currentPlayer);
         const isViewer = i === viewerIdx;
         const isDealer = dealer != null && i === dealer;
+        const isFirst = firstPlayer != null && i === firstPlayer;
         const label = playerNames?.[i]?.[0]?.toUpperCase() || String(i);
 
-        return { x, y, isActive, isViewer, isDealer, label, id: i };
+        return { x, y, isActive, isViewer, isDealer, isFirst, label, id: i };
     });
 
     return (
@@ -184,9 +185,20 @@ const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames, dealer })
                     zIndex: 2,
                 }} title={playerNames?.[p.id] || `Player ${p.id}`}>
                     {p.label}
-                    {p.isDealer && (
+                    {p.isFirst && (
                         <div style={{
                             position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)',
+                            width: '16px', height: '16px', zIndex: 3,
+                        }}>
+                            <svg viewBox="0 0 16 16" width="16" height="16">
+                                <rect x="1" y="2" width="14" height="12" rx="2" fill="#27ae60" stroke="#1e8449" strokeWidth="0.8" />
+                                <text x="8" y="9.5" textAnchor="middle" fontSize="7" fontWeight="bold" fill="white">1</text>
+                            </svg>
+                        </div>
+                    )}
+                    {p.isDealer && (
+                        <div style={{
+                            position: 'absolute', bottom: '-10px', left: '50%', transform: 'translateX(-50%)',
                             width: '16px', height: '16px', zIndex: 3,
                         }}>
                             <svg viewBox="0 0 16 16" width="16" height="16">
@@ -490,6 +502,42 @@ const Board = (props) => {
     };
     const [dragIndex, setDragIndex] = React.useState(null);
     const [dropTarget, setDropTarget] = React.useState(null);
+
+    // Local sort order: maps display position → actual hand index.
+    // Allows sorting/reordering without a boardgame.io move (works off-turn).
+    const [localOrder, setLocalOrder] = React.useState(() => []);
+    const prevHandRef = React.useRef(null);
+    React.useEffect(() => {
+        const hand = G.players?.[playerID]?.hand;
+        if (!hand) return;
+        if (hand === prevHandRef.current) return; // same reference, no change
+        const oldHand = prevHandRef.current;
+        prevHandRef.current = hand;
+        setLocalOrder(prev => {
+            if (!oldHand || prev.length === 0) return hand.map((_, i) => i);
+
+            // Match old display-ordered cards to new hand indices
+            const available = hand.map((c, i) => ({ key: c.rank + c.suit, idx: i, used: false }));
+            const newOrder = [];
+            for (const oldActualIdx of prev) {
+                const oldCard = oldHand[oldActualIdx];
+                if (!oldCard) continue;
+                const oldKey = oldCard.rank + oldCard.suit;
+                const match = available.find(a => !a.used && a.key === oldKey);
+                if (match) {
+                    match.used = true;
+                    newOrder.push(match.idx);
+                }
+            }
+            // Append any new cards (e.g. drawn card) at end
+            for (const a of available) {
+                if (!a.used) newOrder.push(a.idx);
+            }
+            return newOrder.length === hand.length ? newOrder : hand.map((_, i) => i);
+        });
+    });
+    const toActual = (displayIdx) => localOrder[displayIdx] ?? displayIdx;
+
     const [scoreDrawerOpen, setScoreDrawerOpen] = React.useState(true);
     const [scoreboardWidth, setScoreboardWidth] = React.useState(600);
     const isDraggingDivider = React.useRef(false);
@@ -620,7 +668,7 @@ const Board = (props) => {
 
             // WILD SWAP ('w')
             if (key === 'w' && sel.length === 1 && isMyTurn) {
-                const cardIndex = sel[0];
+                const cardIndex = toActual(sel[0]);
                 const card = G.players[playerID].hand[cardIndex];
 
                 let swapped = false;
@@ -648,13 +696,13 @@ const Board = (props) => {
 
             // DISCARD ('d')
             if (key === 'd' && sel.length === 1 && (G.hasDrawn || G.isFirstTurn) && isMyTurn) {
-                moves.discardCard(sel[0]);
+                moves.discardCard(toActual(sel[0]));
                 setSelectedIndices([]);
             }
 
             // MELD ('m')
             if (key === 'm' && sel.length >= 3) {
-                const selectedCards = sel.map(i => G.players[playerID].hand[i]);
+                const selectedCards = sel.map(i => G.players[playerID].hand[toActual(i)]);
                 let type = null;
                 if (isValidSet(selectedCards, G.round, G.rules)) type = 'set';
                 else if (isValidRun(selectedCards, G.round, G.rules)) type = 'run';
@@ -669,7 +717,7 @@ const Board = (props) => {
 
             // LAY OFF ('l')
             if (key === 'l' && sel.length > 0) {
-                sel.forEach(cardIdx => doLayoff(cardIdx));
+                sel.forEach(displayIdx => doLayoff(toActual(displayIdx)));
                 setSelectedIndices([]);
             }
 
@@ -806,14 +854,8 @@ const Board = (props) => {
 
     const sortHand = () => {
         const hand = player.hand;
-        const sortStart = 0;
+        const sorted = [...localOrder];
 
-        // Build index array for the sortable portion
-        const sortableIndices = [];
-        for (let i = sortStart; i < hand.length; i++) sortableIndices.push(i);
-
-        // Sort: primary by rank value (low to high), secondary by suit
-        // Wild cards get special rank based on wildSortMode
         const sortRank = (card) => {
             if (isWild(card, G.round)) {
                 if (wildSortMode === 'left') return -1;
@@ -821,7 +863,7 @@ const Board = (props) => {
             }
             return RANKS.indexOf(card.rank);
         };
-        sortableIndices.sort((a, b) => {
+        sorted.sort((a, b) => {
             const ca = hand[a], cb = hand[b];
             const ra = sortRank(ca), rb = sortRank(cb);
             if (ra !== rb) return ra - rb;
@@ -829,41 +871,29 @@ const Board = (props) => {
         });
 
         // Second pass: reorder same-rank groups to maximize suit adjacency
-        // For each group of same-rank cards, pick the permutation that best
-        // connects suits with the cards before and after the group.
         let i = 0;
-        while (i < sortableIndices.length) {
+        while (i < sorted.length) {
             let j = i;
-            const rank = RANKS.indexOf(hand[sortableIndices[i]].rank);
-            while (j < sortableIndices.length && RANKS.indexOf(hand[sortableIndices[j]].rank) === rank) j++;
+            const rank = RANKS.indexOf(hand[sorted[i]].rank);
+            while (j < sorted.length && RANKS.indexOf(hand[sorted[j]].rank) === rank) j++;
             if (j - i > 1) {
-                // Look at the suit of the card after this group (what we want to lead into)
-                const nextSuit = j < sortableIndices.length ? hand[sortableIndices[j]].suit : null;
-                // Look at the suit of the card before this group (what we want to continue from)
-                const prevSuit = i > 0 ? hand[sortableIndices[i - 1]].suit : null;
-                const group = sortableIndices.slice(i, j);
-                // Sort group: put cards matching prevSuit first, then others, then matching nextSuit last
+                const nextSuit = j < sorted.length ? hand[sorted[j]].suit : null;
+                const prevSuit = i > 0 ? hand[sorted[i - 1]].suit : null;
+                const group = sorted.slice(i, j);
                 group.sort((a, b) => {
                     const sa = hand[a].suit, sb = hand[b].suit;
-                    // Card matching nextSuit goes last (to be adjacent to the next card)
                     if (sa === nextSuit && sb !== nextSuit) return 1;
                     if (sb === nextSuit && sa !== nextSuit) return -1;
-                    // Card matching prevSuit goes first (to be adjacent to the previous card)
                     if (sa === prevSuit && sb !== prevSuit) return -1;
                     if (sb === prevSuit && sa !== prevSuit) return 1;
                     return SUIT_ORDER[sa] - SUIT_ORDER[sb];
                 });
-                for (let k = 0; k < group.length; k++) sortableIndices[i + k] = group[k];
+                for (let k = 0; k < group.length; k++) sorted[i + k] = group[k];
             }
             i = j;
         }
 
-        // Build full new order: held cards stay in place, sorted cards follow
-        const newOrder = [];
-        for (let i = 0; i < sortStart; i++) newOrder.push(i);
-        for (const idx of sortableIndices) newOrder.push(idx);
-
-        moves.sortHand({ newOrder });
+        setLocalOrder(sorted);
         setSelectedIndices([]);
     };
 
@@ -1027,7 +1057,8 @@ const Board = (props) => {
                                 currentPlayer={ctx.currentPlayer}
                                 playerID={playerID}
                                 playerNames={G.playerNames}
-                                dealer={ctx.gameover ? null : G.round % ctx.numPlayers}
+                                firstPlayer={ctx.gameover ? null : G.round % ctx.numPlayers}
+                                dealer={ctx.gameover ? null : (G.round + ctx.numPlayers - 1) % ctx.numPlayers}
                             />
                         </div>
 
@@ -1140,9 +1171,12 @@ const Board = (props) => {
                                 style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'flex-start' }}
                                 onDragOver={(e) => e.preventDefault()}
                             >
-                                {player.hand.map((card, i) => (
+                                {localOrder.map((actualIdx, i) => {
+                                    const card = player.hand[actualIdx];
+                                    if (!card) return null;
+                                    return (
                                     <div
-                                        key={`card-${i}-${card.rank}-${card.suit}`}
+                                        key={`card-${actualIdx}-${card.rank}-${card.suit}`}
                                         onDragOver={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
@@ -1151,7 +1185,12 @@ const Board = (props) => {
                                         onDrop={(e) => {
                                             e.preventDefault();
                                             if (dragIndex !== null && dragIndex !== i) {
-                                                moves.reorderHand({ startIndex: dragIndex, endIndex: i });
+                                                setLocalOrder(prev => {
+                                                    const next = [...prev];
+                                                    const [removed] = next.splice(dragIndex, 1);
+                                                    next.splice(i, 0, removed);
+                                                    return next;
+                                                });
                                                 setSelectedIndices([]);
                                             }
                                             setDragIndex(null);
@@ -1186,7 +1225,8 @@ const Board = (props) => {
                                             }}
                                         />
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                             {/* Sort controls — below cards, left-aligned */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
@@ -1276,7 +1316,7 @@ const Board = (props) => {
                                         disabled={!canDiscard}
                                         onClick={() => {
                                             if (!canDiscard) return;
-                                            moves.discardCard(safeSelection[0]);
+                                            moves.discardCard(toActual(safeSelection[0]));
                                             setSelectedIndices([]);
                                         }}
                                         style={{
@@ -1293,9 +1333,9 @@ const Board = (props) => {
                                 return (
                                     <button
                                         onClick={() => {
-                                            const sel = selectedRef.current.filter(i => i < G.players[playerID].hand.length);
+                                            const sel = selectedRef.current.filter(i => i < localOrder.length);
                                             if (sel.length < 3) return;
-                                            const selectedCards = sel.map(i => G.players[playerID].hand[i]);
+                                            const selectedCards = sel.map(i => G.players[playerID].hand[toActual(i)]);
                                             let type = null;
                                             if (isValidSet(selectedCards, G.round, G.rules)) type = 'set';
                                             else if (isValidRun(selectedCards, G.round, G.rules)) type = 'run';
@@ -1318,9 +1358,9 @@ const Board = (props) => {
                                 return (
                                     <button
                                         onClick={() => {
-                                            const sel = selectedRef.current.filter(i => i < G.players[playerID].hand.length);
+                                            const sel = selectedRef.current.filter(i => i < localOrder.length);
                                             if (sel.length === 0 || !isMyTurn) return;
-                                            sel.forEach(cardIdx => doLayoff(cardIdx));
+                                            sel.forEach(displayIdx => doLayoff(toActual(displayIdx)));
                                             setSelectedIndices([]);
                                         }}
                                         style={{
@@ -1342,9 +1382,9 @@ const Board = (props) => {
                                 return (
                                     <button
                                         onClick={() => {
-                                            const sel = selectedRef.current.filter(i => i < G.players[playerID].hand.length);
+                                            const sel = selectedRef.current.filter(i => i < localOrder.length);
                                             if (sel.length !== 1 || !isMyTurn) return;
-                                            const cardIndex = sel[0];
+                                            const cardIndex = toActual(sel[0]);
                                             const card = G.players[playerID].hand[cardIndex];
                                             for (let meldIdx = 0; meldIdx < G.board.length; meldIdx++) {
                                                 const meld = G.board[meldIdx];

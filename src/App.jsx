@@ -620,8 +620,20 @@ const Board = (props) => {
                 setWildSortMode(m => m === 'in-place' ? 'left' : m === 'left' ? 'right' : 'in-place');
             }
 
-            // NUMBER KEYS select/deselect cards (1-9, 0=10)
+            // NUMBER KEYS — when layoff picker is active, select a target position
             const digit = e.key === '0' ? 10 : parseInt(e.key);
+            if (layoffPick && digit >= 1 && digit <= 9) {
+                const targetIndex = digit - 1;
+                if (targetIndex < layoffPick.targets.length) {
+                    const t = layoffPick.targets[targetIndex];
+                    moves.layOff({ cardIndex: layoffPick.cardIndex, meldIndex: t.meldIndex, position: t.position });
+                    setLayoffPick(null);
+                    setSelectedIndices([]);
+                }
+                return;
+            }
+
+            // NUMBER KEYS select/deselect cards (1-9, 0=10)
             if (digit >= 1 && digit <= 10 && digit <= G.players[playerID].hand.length) {
                 toggleSelect(digit - 1);
             }
@@ -655,7 +667,7 @@ const Board = (props) => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [G, ctx, moves, playerID]);
+    }, [G, ctx, moves, playerID, layoffPick]);
 
     if (!G || !G.players) return <div>Loading...</div>;
 
@@ -1328,7 +1340,7 @@ const Board = (props) => {
                                 fontSize: '13px', color: '#1e8449',
                             }}>
                                 <strong>Choose where to place your card</strong>
-                                <span>— click a green [+] on a valid meld</span>
+                                <span>— click a numbered position or press its key</span>
                                 <button
                                     onClick={() => setLayoffPick(null)}
                                     style={{
@@ -1367,7 +1379,9 @@ const Board = (props) => {
                                             {isRetractable && !layoffPick && <span style={{ marginLeft: '5px', color: '#3498db' }}>(RETRACTABLE)</span>}
                                         </div>
                                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                            {pickStartTarget && (
+                                            {pickStartTarget && (() => {
+                                                const targetNum = layoffPick.targets.findIndex(t => t.meldIndex === i && t.position === 'start') + 1;
+                                                return (
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -1378,11 +1392,13 @@ const Board = (props) => {
                                                     style={{
                                                         padding: '2px 6px', borderRadius: '4px', border: '2px solid #27ae60',
                                                         background: '#27ae60', color: 'white', cursor: 'pointer',
-                                                        fontSize: '16px', fontWeight: 'bold', lineHeight: 1,
+                                                        fontSize: '14px', fontWeight: 'bold', lineHeight: 1,
+                                                        minWidth: '24px',
                                                     }}
-                                                    title="Place card here (start)"
-                                                >+</button>
-                                            )}
+                                                    title={`Place card here (start) — press ${targetNum}`}
+                                                >{targetNum}</button>
+                                                );
+                                            })()}
                                             {meld.cards.map((c, j) => {
                                                 const inferred = getInferredRank(meld, j, G.round);
                                                 return (
@@ -1398,7 +1414,9 @@ const Board = (props) => {
                                                     </div>
                                                 );
                                             })}
-                                            {pickEndTarget && (
+                                            {pickEndTarget && (() => {
+                                                const targetNum = layoffPick.targets.findIndex(t => t.meldIndex === i && t.position === 'end') + 1;
+                                                return (
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -1409,11 +1427,13 @@ const Board = (props) => {
                                                     style={{
                                                         padding: '2px 6px', borderRadius: '4px', border: '2px solid #27ae60',
                                                         background: '#27ae60', color: 'white', cursor: 'pointer',
-                                                        fontSize: '16px', fontWeight: 'bold', lineHeight: 1,
+                                                        fontSize: '14px', fontWeight: 'bold', lineHeight: 1,
+                                                        minWidth: '24px',
                                                     }}
-                                                    title="Place card here (end)"
-                                                >+</button>
-                                            )}
+                                                    title={`Place card here (end) — press ${targetNum}`}
+                                                >{targetNum}</button>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 );

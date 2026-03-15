@@ -911,21 +911,73 @@ const Board = (props) => {
                         </div>
 
                         <div style={{ display: 'flex', gap: '8px', marginTop: '4px', marginBottom: '6px' }}>
-                            <div style={{ background: '#eee', padding: '4px 10px', borderRadius: '6px', flex: 1, fontSize: '13px' }}>
-                                <p style={{ margin: '2px 0' }}><strong>Draw Pile:</strong> {G.deck.length} cards</p>
-                                <p style={{ margin: '2px 0' }}><strong>Discard Pile:</strong> {G.discardPile?.length > 0 ?
-                                    <span style={{ color: SUIT_COLORS[G.discardPile[G.discardPile.length - 1].suit], fontSize: '20px', fontWeight: 'bold' }}>
-                                        {G.discardPile[G.discardPile.length - 1].rank}{SUIT_ICONS[G.discardPile[G.discardPile.length - 1].suit]}
-                                        <span style={{ color: '#666', fontSize: '11px', fontWeight: 'normal', marginLeft: '4px' }}>
-                                            ({G.discardPile.length} cards)
-                                        </span>
-                                    </span> : 'Empty'}
-                                </p>
-                                {G.flipCount > 0 && (
-                                    <p style={{ margin: '2px 0', fontSize: '11px', color: '#8e44ad' }}>
-                                        <strong>Flip Shuffles:</strong> {G.flipCount}
-                                    </p>
-                                )}
+                            <div style={{ background: '#eee', padding: '6px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                {/* Draw Pile card */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <div
+                                        onClick={() => { if (isMyTurn && !G.hasDrawn) moves.drawCard(true); }}
+                                        title={`Draw Pile (n) — ${G.deck.length} cards`}
+                                        style={{
+                                            width: '48px', height: '68px', borderRadius: '5px',
+                                            border: '1px solid #999',
+                                            background: 'linear-gradient(135deg, #1a5276 0%, #2471a3 40%, #1a5276 60%, #154360 100%)',
+                                            cursor: isMyTurn && !G.hasDrawn ? 'pointer' : 'default',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            boxShadow: '1px 1px 3px rgba(0,0,0,0.2)',
+                                            position: 'relative',
+                                        }}
+                                    >
+                                        {/* Card back pattern */}
+                                        <div style={{
+                                            width: '38px', height: '58px', borderRadius: '3px',
+                                            border: '1px solid rgba(255,255,255,0.3)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        }}>
+                                            <div style={{
+                                                width: '30px', height: '50px', borderRadius: '2px',
+                                                background: 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.1) 3px, rgba(255,255,255,0.1) 6px)',
+                                                border: '1px solid rgba(255,255,255,0.2)',
+                                            }} />
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#555', lineHeight: 1.3 }}>
+                                        <div style={{ fontWeight: 'bold' }}>Draw Pile (n)</div>
+                                        <div>{G.deck.length} cards</div>
+                                        {G.flipCount > 0 && <div style={{ color: '#8e44ad', fontSize: '10px' }}>Flips: {G.flipCount}</div>}
+                                    </div>
+                                </div>
+                                {/* Discard Pile card */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    {(() => {
+                                        const topCard = G.discardPile?.length > 0 ? G.discardPile[G.discardPile.length - 1] : null;
+                                        return (
+                                            <div
+                                                onClick={() => { if (isMyTurn && !G.hasDrawn && topCard) moves.drawCard(false); }}
+                                                title={topCard ? `Discard Pile (o) — ${topCard.rank}${SUIT_ICONS[topCard.suit]} (${G.discardPile.length} cards)` : 'Discard Pile — Empty'}
+                                                style={{
+                                                    width: '48px', height: '68px', borderRadius: '5px',
+                                                    border: topCard ? '1px solid #ccc' : '1px dashed #bbb',
+                                                    background: topCard ? 'white' : '#f5f5f5',
+                                                    cursor: isMyTurn && !G.hasDrawn && topCard ? 'pointer' : 'default',
+                                                    display: 'flex', flexDirection: 'column',
+                                                    alignItems: 'center', justifyContent: 'center',
+                                                    boxShadow: topCard ? '1px 1px 3px rgba(0,0,0,0.15)' : 'none',
+                                                }}
+                                            >
+                                                {topCard ? (<>
+                                                    <div style={{ fontSize: '16px', fontWeight: 'bold', lineHeight: 1 }}>{topCard.rank}</div>
+                                                    <div style={{ fontSize: '22px', color: SUIT_COLORS[topCard.suit], lineHeight: 1 }}>{SUIT_ICONS[topCard.suit]}</div>
+                                                </>) : (
+                                                    <div style={{ color: '#ccc', fontSize: '20px', lineHeight: 1 }}>&#x2205;</div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
+                                    <div style={{ fontSize: '11px', color: '#555', lineHeight: 1.3 }}>
+                                        <div style={{ fontWeight: 'bold' }}>Discard Pile (o)</div>
+                                        <div>{G.discardPile?.length || 0} cards</div>
+                                    </div>
+                                </div>
                             </div>
                             <div style={{ background: '#eee', padding: '4px 10px', borderRadius: '6px', flex: 1, fontSize: '13px' }}>
                                 <p style={{ margin: '2px 0' }}><strong>Score:</strong> {player.score}</p>

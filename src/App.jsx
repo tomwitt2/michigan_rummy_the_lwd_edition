@@ -858,9 +858,16 @@ const Board = (props) => {
                         <div style={{ borderBottom: '2px solid #333', paddingBottom: '2px', display: 'flex', alignItems: 'stretch', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                                 <div>
-                                    <h1 style={{ color: '#2c3e50', margin: '0 0 1px 0', fontSize: '1.4em', textTransform: 'uppercase', letterSpacing: '2px' }}>
-                                        LWD Rummy
-                                    </h1>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <h1 style={{ color: '#2c3e50', margin: '0', fontSize: '1.4em', textTransform: 'uppercase', letterSpacing: '2px' }}>
+                                            Michigan Rummy
+                                        </h1>
+                                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.1, color: '#888', fontSize: '0.55em', fontWeight: 'normal' }}>
+                                            <span><strong>L</strong>ott</span>
+                                            <span><strong>W</strong>ittbrodt</span>
+                                            <span><strong>D</strong>logolpolski</span>
+                                        </div>
+                                    </div>
                                 <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.1em' }}>
                                 {editingNameId === playerID ? (
                                     <input
@@ -1459,9 +1466,16 @@ const Lobby = ({ onStart, onReplay }) => {
 
     return (
         <div style={{ padding: '40px', fontFamily: '"Arial", sans-serif', maxWidth: '500px', margin: '0 auto' }}>
-            <h1 style={{ color: '#2c3e50', textTransform: 'uppercase', letterSpacing: '2px', textAlign: 'center' }}>
-                LWD Rummy
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <h1 style={{ color: '#2c3e50', textTransform: 'uppercase', letterSpacing: '2px', textAlign: 'center', margin: 0 }}>
+                    Michigan Rummy
+                </h1>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.1, color: '#888', fontSize: '0.55em', fontWeight: 'normal' }}>
+                    <span><strong>L</strong>ott</span>
+                    <span><strong>W</strong>ittbrodt</span>
+                    <span><strong>D</strong>logolpolski</span>
+                </div>
+            </div>
             <h2 style={{ color: '#666', textAlign: 'center', fontWeight: 'normal' }}>Game Setup</h2>
 
             <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '10px', marginBottom: '20px' }}>

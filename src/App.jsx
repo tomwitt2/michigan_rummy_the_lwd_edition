@@ -439,32 +439,11 @@ const Board = (props) => {
     const [dragIndex, setDragIndex] = React.useState(null);
     const [dropTarget, setDropTarget] = React.useState(null);
     const [scoreDrawerOpen, setScoreDrawerOpen] = React.useState(false);
-    const [scoreDrawerLocked, setScoreDrawerLocked] = React.useState(false);
     const [scoreboardWidth, setScoreboardWidth] = React.useState(600);
     const isDraggingDivider = React.useRef(false);
     // Layoff target picker: { cardIndex, targets: [{ meldIndex, position }] } or null
     const [layoffPick, setLayoffPick] = React.useState(null);
-    // Per-player hold indices — persists when switching players via debug panel
-    const holdIndicesRef = React.useRef({});
-    const getHoldIndex = () => holdIndicesRef.current[playerID] || 0;
-    const [holdIndex, _setHoldIndex] = React.useState(getHoldIndex);
-    const setHoldIndex = (valOrFn) => {
-        _setHoldIndex(prev => {
-            const next = typeof valOrFn === 'function' ? valOrFn(prev) : valOrFn;
-            holdIndicesRef.current[playerID] = next;
-            return next;
-        });
-    };
-    // Restore hold index when playerID changes (debug panel switch)
-    const prevPlayerID = React.useRef(playerID);
-    React.useEffect(() => {
-        if (playerID !== prevPlayerID.current) {
-            prevPlayerID.current = playerID;
-            _setHoldIndex(holdIndicesRef.current[playerID] || 0);
-        }
-    }, [playerID]);
     const handCardsRef = React.useRef(null);
-    const [holdTrackWidth, setHoldTrackWidth] = React.useState(200);
     // Player name editing — which player ID is being edited (null = none)
     const [editingNameId, setEditingNameId] = React.useState(null);
     // Wild card sort mode: 'in-place' | 'left' | 'right'
@@ -515,24 +494,6 @@ const Board = (props) => {
         }
     }, [editingNameId]);
 
-    // Measure cards container width for hold slider track
-    React.useEffect(() => {
-        const measure = () => {
-            if (handCardsRef.current) {
-                const children = handCardsRef.current.children;
-                if (children.length > 0) {
-                    const last = children[children.length - 1];
-                    const containerLeft = handCardsRef.current.getBoundingClientRect().left;
-                    const lastRight = last.getBoundingClientRect().right;
-                    setHoldTrackWidth(lastRight - containerLeft);
-                }
-            }
-        };
-        measure();
-        window.addEventListener('resize', measure);
-        return () => window.removeEventListener('resize', measure);
-    });
-
     // Find all valid (meldIndex, position) targets for laying off a card
     const findLayoffTargets = React.useCallback((card) => {
         const targets = [];
@@ -571,9 +532,13 @@ const Board = (props) => {
         const handleKeyDown = (e) => {
             // Don't fire shortcuts while any text input is focused
             const tag = document.activeElement?.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
             const key = e.key.toLowerCase();
             const sel = selectedRef.current;
+            // Stop single-letter keys from propagating to the boardgame.io debug panel
+            if (key.length === 1) {
+                e.stopPropagation();
+            }
 
             // DRAW PILE ('n' — new card)
             if (key === 'n' && !G.hasDrawn && isMyTurn) {
@@ -671,6 +636,21 @@ const Board = (props) => {
             if (key === 'Escape') {
                 setLayoffPick(null);
             }
+
+            // TAB — switch to next player in debug panel (dev only)
+            if (e.key === 'Tab' && import.meta.env.DEV) {
+                e.preventDefault();
+                const nextPlayer = String((parseInt(playerID) + 1) % ctx.numPlayers);
+                // boardgame.io debug panel renders player buttons as:
+                //   <button class="player svelte-19aan9p">0</button>
+                for (const btn of document.querySelectorAll('button.player.svelte-19aan9p')) {
+                    if (btn.textContent.trim() === nextPlayer) {
+                        btn.click();
+                        document.activeElement?.blur();
+                        return;
+                    }
+                }
+            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
@@ -683,31 +663,12 @@ const Board = (props) => {
     const isMyTurn = ctx.currentPlayer === playerID;
 
     // Auto-clear selection when hand shrinks (card was played/discarded)
-    // Decrement holdIndex for each card removed from the held region (left of marker)
     const prevHandLen = React.useRef(player.hand.length);
-    const prevSelection = React.useRef([]);
-    // Snapshot selection before it gets cleared, so we know which cards were played
-    React.useEffect(() => {
-        prevSelection.current = selectedRef.current.slice();
-    });
     React.useEffect(() => {
         if (player.hand.length < prevHandLen.current) {
-            const cardsRemoved = prevHandLen.current - player.hand.length;
-            const oldHold = holdIndicesRef.current[playerID] || 0;
-            // Count how many removed cards were in the held region (index < holdIndex)
-            const sel = prevSelection.current;
-            let heldCardsRemoved = 0;
-            if (sel.length > 0 && sel.length === cardsRemoved) {
-                // We know exactly which cards were removed
-                heldCardsRemoved = sel.filter(i => i < oldHold).length;
-            } else {
-                // Fallback: clamp only (e.g. cards removed by other means)
-                heldCardsRemoved = Math.max(0, oldHold - player.hand.length);
-            }
             selectedRef.current = [];
             _setSelectedIndices([]);
             setLayoffPick(null);
-            setHoldIndex(prev => Math.max(0, prev - heldCardsRemoved));
         }
         prevHandLen.current = player.hand.length;
     }, [player.hand.length]);
@@ -765,8 +726,7 @@ const Board = (props) => {
 
     const sortHand = () => {
         const hand = player.hand;
-        const sortStart = holdIndex;
-        if (sortStart >= hand.length) return;
+        const sortStart = 0;
 
         // Build index array for the sortable portion
         const sortableIndices = [];
@@ -917,9 +877,16 @@ const Board = (props) => {
                         <div style={{ borderBottom: '2px solid #333', paddingBottom: '2px', display: 'flex', alignItems: 'stretch', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                                 <div>
-                                    <h1 style={{ color: '#2c3e50', margin: '0 0 1px 0', fontSize: '1.4em', textTransform: 'uppercase', letterSpacing: '2px' }}>
-                                        LWD Rummy
-                                    </h1>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <h1 style={{ color: '#2c3e50', margin: '0', fontSize: '1.4em', textTransform: 'uppercase', letterSpacing: '2px' }}>
+                                            Michigan Rummy
+                                        </h1>
+                                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.1, color: '#888', fontSize: '0.55em', fontWeight: 'normal' }}>
+                                            <span><strong>L</strong>ott</span>
+                                            <span><strong>W</strong>ittbrodt</span>
+                                            <span><strong>D</strong>logolpolski</span>
+                                        </div>
+                                    </div>
                                 <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.1em' }}>
                                 {editingNameId === playerID ? (
                                     <input
@@ -963,21 +930,74 @@ const Board = (props) => {
                         </div>
 
                         <div style={{ display: 'flex', gap: '8px', marginTop: '4px', marginBottom: '6px' }}>
-                            <div style={{ background: '#eee', padding: '4px 10px', borderRadius: '6px', flex: 1, fontSize: '13px' }}>
-                                <p style={{ margin: '2px 0' }}><strong>Draw Pile:</strong> {G.deck.length} cards</p>
-                                <p style={{ margin: '2px 0' }}><strong>Discard Pile:</strong> {G.discardPile?.length > 0 ?
-                                    <span style={{ color: SUIT_COLORS[G.discardPile[G.discardPile.length - 1].suit], fontSize: '20px', fontWeight: 'bold' }}>
-                                        {G.discardPile[G.discardPile.length - 1].rank}{SUIT_ICONS[G.discardPile[G.discardPile.length - 1].suit]}
-                                        <span style={{ color: '#666', fontSize: '11px', fontWeight: 'normal', marginLeft: '4px' }}>
-                                            ({G.discardPile.length} cards)
-                                        </span>
-                                    </span> : 'Empty'}
-                                </p>
-                                {G.flipCount > 0 && (
-                                    <p style={{ margin: '2px 0', fontSize: '11px', color: '#8e44ad' }}>
-                                        <strong>Flip Shuffles:</strong> {G.flipCount}
-                                    </p>
-                                )}
+                            <div style={{ background: '#eee', padding: '6px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                {/* Draw Pile card */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <div
+                                        onClick={() => { if (!G.hasDrawn) moves.drawCard(true); }}
+                                        title={`Draw Pile (n) — ${G.deck.length} cards`}
+                                        style={{
+                                            width: '48px', height: '68px', borderRadius: '5px',
+                                            border: '1px solid #999',
+                                            background: 'linear-gradient(135deg, #1a5276 0%, #2471a3 40%, #1a5276 60%, #154360 100%)',
+                                            cursor: !G.hasDrawn ? 'pointer' : 'default',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            boxShadow: '1px 1px 3px rgba(0,0,0,0.2)',
+                                            position: 'relative',
+                                        }}
+                                    >
+                                        {/* Card back pattern */}
+                                        <div style={{
+                                            width: '38px', height: '58px', borderRadius: '3px',
+                                            border: '1px solid rgba(255,255,255,0.3)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            pointerEvents: 'none',
+                                        }}>
+                                            <div style={{
+                                                width: '30px', height: '50px', borderRadius: '2px',
+                                                background: 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.1) 3px, rgba(255,255,255,0.1) 6px)',
+                                                border: '1px solid rgba(255,255,255,0.2)',
+                                            }} />
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#555', lineHeight: 1.3 }}>
+                                        <div style={{ fontWeight: 'bold' }}>Draw Pile (n)</div>
+                                        <div>{G.deck.length} cards</div>
+                                        {G.flipCount > 0 && <div style={{ color: '#8e44ad', fontSize: '10px' }}>Flips: {G.flipCount}</div>}
+                                    </div>
+                                </div>
+                                {/* Discard Pile card */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    {(() => {
+                                        const topCard = G.discardPile?.length > 0 ? G.discardPile[G.discardPile.length - 1] : null;
+                                        return (
+                                            <div
+                                                onClick={() => { if (!G.hasDrawn && topCard) moves.drawCard(false); }}
+                                                title={topCard ? `Discard Pile (o) — ${topCard.rank}${SUIT_ICONS[topCard.suit]} (${G.discardPile.length} cards)` : 'Discard Pile — Empty'}
+                                                style={{
+                                                    width: '48px', height: '68px', borderRadius: '5px',
+                                                    border: topCard ? '1px solid #ccc' : '1px dashed #bbb',
+                                                    background: topCard ? 'white' : '#f5f5f5',
+                                                    cursor: !G.hasDrawn && topCard ? 'pointer' : 'default',
+                                                    display: 'flex', flexDirection: 'column',
+                                                    alignItems: 'center', justifyContent: 'center',
+                                                    boxShadow: topCard ? '1px 1px 3px rgba(0,0,0,0.15)' : 'none',
+                                                }}
+                                            >
+                                                {topCard ? (<>
+                                                    <div style={{ fontSize: '16px', fontWeight: 'bold', lineHeight: 1, pointerEvents: 'none' }}>{topCard.rank}</div>
+                                                    <div style={{ fontSize: '22px', color: SUIT_COLORS[topCard.suit], lineHeight: 1, pointerEvents: 'none' }}>{SUIT_ICONS[topCard.suit]}</div>
+                                                </>) : (
+                                                    <div style={{ color: '#ccc', fontSize: '20px', lineHeight: 1, pointerEvents: 'none' }}>&#x2205;</div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
+                                    <div style={{ fontSize: '11px', color: '#555', lineHeight: 1.3 }}>
+                                        <div style={{ fontWeight: 'bold' }}>Discard Pile (o)</div>
+                                        <div>{G.discardPile?.length || 0} cards</div>
+                                    </div>
+                                </div>
                             </div>
                             <div style={{ background: '#eee', padding: '4px 10px', borderRadius: '6px', flex: 1, fontSize: '13px' }}>
                                 <p style={{ margin: '2px 0' }}><strong>Score:</strong> {player.score}</p>
@@ -1009,25 +1029,6 @@ const Board = (props) => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                             <h3 style={{ margin: 0, fontSize: '14px' }}>Your Hand ({player.hand.length} cards)</h3>
                             <span style={{ fontSize: '11px', color: '#999' }}>Click cards in order for runs.</span>
-                            <span style={{ flex: 1 }} />
-                            <span
-                                onClick={() => setWildSortMode(m => m === 'in-place' ? 'left' : m === 'left' ? 'right' : 'in-place')}
-                                title={`Wild sort: ${wildSortMode === 'left' ? 'wilds sort to left' : wildSortMode === 'right' ? 'wilds sort to right' : 'wilds sort in place'}\nClick to cycle`}
-                                style={{
-                                    fontSize: '11px', cursor: 'pointer', userSelect: 'none',
-                                    padding: '1px 6px', borderRadius: '4px', border: '1px solid #dbb',
-                                    background: wildSortMode === 'in-place' ? '#f0f0f0' : '#fff9c4',
-                                    color: '#666', fontWeight: 'bold',
-                                }}
-                            >W: {wildSortMode === 'left' ? '◀' : wildSortMode === 'right' ? '▶' : '—'} (c)</span>
-                            <button
-                                onClick={sortHand}
-                                title="Sort hand by rank (held cards stay in place)"
-                                style={{
-                                    padding: '2px 8px', borderRadius: '4px', border: '1px solid #bbb',
-                                    background: '#f0f0f0', color: '#555', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold',
-                                }}
-                            >Sort Cards (s)</button>
                         </div>
                         <div
                             style={{ background: '#f5f5f5', padding: '8px 12px', borderRadius: '8px' }}
@@ -1050,10 +1051,6 @@ const Board = (props) => {
                                             if (dragIndex !== null && dragIndex !== i) {
                                                 moves.reorderHand({ startIndex: dragIndex, endIndex: i });
                                                 setSelectedIndices([]);
-                                                if (holdIndex > 0) {
-                                                    if (dragIndex < holdIndex && i >= holdIndex) setHoldIndex(holdIndex - 1);
-                                                    else if (dragIndex >= holdIndex && i < holdIndex) setHoldIndex(holdIndex + 1);
-                                                }
                                             }
                                             setDragIndex(null);
                                             setDropTarget(null);
@@ -1089,64 +1086,26 @@ const Board = (props) => {
                                     </div>
                                 ))}
                             </div>
-                            {/* Hold slider track — inside grey box, width matches cards */}
-                            <div style={{ position: 'relative', height: '28px', marginTop: '6px', width: `${holdTrackWidth}px` }}>
-                                {/* Left line (held region) — glowing */}
-                                {holdIndex > 0 && (
-                                    <div style={{
-                                        position: 'absolute', top: '8px', left: 0,
-                                        width: `${(holdIndex / player.hand.length) * 100}%`,
-                                        height: '2px', background: '#e74c3c', borderRadius: '1px',
-                                        boxShadow: '0 0 6px 1px rgba(231, 76, 60, 0.5)',
-                                    }} />
-                                )}
-                                {/* Right line (sortable region) — plain grey */}
-                                <div style={{
-                                    position: 'absolute', top: '8px',
-                                    left: `${(holdIndex / player.hand.length) * 100}%`,
-                                    right: 0,
-                                    height: '2px', background: '#ccc', borderRadius: '1px',
-                                }} />
-                                {/* Triangle marker + "Hold" label */}
-                                <div style={{
-                                    position: 'absolute', top: '0px',
-                                    left: `${(holdIndex / player.hand.length) * 100}%`,
-                                    transform: 'translateX(-6px)',
-                                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                                    pointerEvents: 'none',
-                                }}>
-                                    {/* Up-facing triangle, centered on line (top=9px is line center, triangle is 12px tall, so top=3px) */}
-                                    <div style={{
-                                        width: 0, height: 0,
-                                        borderLeft: '6px solid transparent',
-                                        borderRight: '6px solid transparent',
-                                        borderBottom: `12px solid ${holdIndex > 0 ? '#e74c3c' : '#bbb'}`,
-                                        marginTop: '3px',
-                                    }} />
-                                    {holdIndex > 0 && (
-                                        <span style={{
-                                            fontSize: '7px', fontWeight: 'bold',
-                                            color: '#e74c3c', marginTop: '1px',
-                                            lineHeight: 1, whiteSpace: 'nowrap',
-                                        }}>Hold</span>
-                                    )}
-                                </div>
-                                {/* Invisible range input on top for interaction */}
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={player.hand.length}
-                                    value={holdIndex}
-                                    onChange={(e) => setHoldIndex(Number(e.target.value))}
-                                    title={holdIndex > 0 ? `${holdIndex} held · ${player.hand.length - holdIndex} sortable` : 'Slide right to hold cards from sorting'}
+                            {/* Sort controls — below cards, left-aligned */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                                <span
+                                    onClick={() => setWildSortMode(m => m === 'in-place' ? 'left' : m === 'left' ? 'right' : 'in-place')}
+                                    title={`Wild sort: ${wildSortMode === 'left' ? 'wilds sort to left' : wildSortMode === 'right' ? 'wilds sort to right' : 'wilds sort in place'}\nClick to cycle`}
                                     style={{
-                                        position: 'absolute', top: 0, left: '-6px',
-                                        width: 'calc(100% + 12px)', height: '28px',
-                                        appearance: 'none', WebkitAppearance: 'none',
-                                        background: 'transparent', cursor: 'pointer', margin: 0,
-                                        opacity: 0,
+                                        fontSize: '11px', cursor: 'pointer', userSelect: 'none',
+                                        padding: '1px 6px', borderRadius: '4px', border: '1px solid #dbb',
+                                        background: wildSortMode === 'in-place' ? '#f0f0f0' : '#fff9c4',
+                                        color: '#666', fontWeight: 'bold',
                                     }}
-                                />
+                                >Wild Placement: {wildSortMode === 'left' ? '◀' : wildSortMode === 'right' ? '▶' : '—'} (c)</span>
+                                <button
+                                    onClick={sortHand}
+                                    title="Sort hand by rank"
+                                    style={{
+                                        padding: '2px 8px', borderRadius: '4px', border: '1px solid #bbb',
+                                        background: '#f0f0f0', color: '#555', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold',
+                                    }}
+                                >Sort Cards (s)</button>
                             </div>
                         </div>
 
@@ -1464,7 +1423,7 @@ const Board = (props) => {
                 </div>
 
                 {/* Scoreboard flyout tab — positioned on the right edge */}
-                {!(scoreDrawerOpen || scoreDrawerLocked) && (
+                {!scoreDrawerOpen && (
                     <div
                         onClick={() => setScoreDrawerOpen(true)}
                         title="Open Scoreboard"
@@ -1480,7 +1439,7 @@ const Board = (props) => {
                 )}
 
                 {/* Draggable divider + Scoreboard panel */}
-                {(scoreDrawerOpen || scoreDrawerLocked) && (
+                {scoreDrawerOpen && (
                     <>
                         {/* Draggable divider */}
                         <div
@@ -1521,7 +1480,7 @@ const Board = (props) => {
                         }}>
                             {/* Collapse tab on right edge of scoreboard */}
                             <div
-                                onClick={() => { setScoreDrawerOpen(false); setScoreDrawerLocked(false); }}
+                                onClick={() => setScoreDrawerOpen(false)}
                                 title="Close Scoreboard"
                                 style={{
                                     position: 'absolute', right: 0, top: '120px',
@@ -1532,19 +1491,7 @@ const Board = (props) => {
                             >
                                 <span style={{ color: 'white', fontSize: '16px', lineHeight: 1 }}>&#9654;</span>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                <h3 style={{ margin: 0 }}>Scoreboard</h3>
-                                <button
-                                    onClick={() => setScoreDrawerLocked(prev => !prev)}
-                                    title={scoreDrawerLocked ? 'Unlock scoreboard' : 'Lock scoreboard open'}
-                                    style={{
-                                        padding: '4px 10px', borderRadius: '4px', border: '1px solid #ddd',
-                                        background: scoreDrawerLocked ? '#f39c12' : '#f0f0f0',
-                                        color: scoreDrawerLocked ? 'white' : '#555',
-                                        cursor: 'pointer', fontSize: '13px',
-                                    }}
-                                >{scoreDrawerLocked ? '🔒' : '📌'}</button>
-                            </div>
+                            <h3 style={{ margin: '0 0 10px' }}>Scoreboard</h3>
                             <Scoreboard G={G} numPlayers={ctx.numPlayers} playerNames={G.playerNames} currentPlayer={ctx.currentPlayer}
                                 onRename={(id) => startEditName(String(id))}
                                 editingNameId={editingNameId}
@@ -1591,9 +1538,16 @@ const Lobby = ({ onStart, onReplay }) => {
 
     return (
         <div style={{ padding: '40px', fontFamily: '"Arial", sans-serif', maxWidth: '500px', margin: '0 auto' }}>
-            <h1 style={{ color: '#2c3e50', textTransform: 'uppercase', letterSpacing: '2px', textAlign: 'center' }}>
-                LWD Rummy
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <h1 style={{ color: '#2c3e50', textTransform: 'uppercase', letterSpacing: '2px', textAlign: 'center', margin: 0 }}>
+                    Michigan Rummy
+                </h1>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.1, color: '#888', fontSize: '0.55em', fontWeight: 'normal' }}>
+                    <span><strong>L</strong>ott</span>
+                    <span><strong>W</strong>ittbrodt</span>
+                    <span><strong>D</strong>logolpolski</span>
+                </div>
+            </div>
             <h2 style={{ color: '#666', textAlign: 'center', fontWeight: 'normal' }}>Game Setup</h2>
 
             <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '10px', marginBottom: '20px' }}>

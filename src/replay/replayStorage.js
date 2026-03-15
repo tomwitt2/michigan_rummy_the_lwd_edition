@@ -42,7 +42,7 @@ export function downloadReplay(replayData) {
     const a = document.createElement('a');
     const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     a.href = url;
-    a.download = `lwd-rummy-replay-${dateStr}.json`;
+    a.download = `michigan-rummy-replay-${dateStr}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

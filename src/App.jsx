@@ -135,7 +135,7 @@ class ErrorBoundary extends React.Component {
     }
 }
 
-const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames, dealer }) => {
+const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames, dealer, firstPlayer }) => {
     const size = 110;
     const center = size / 2;
     const radius = 38;
@@ -151,9 +151,10 @@ const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames, dealer })
         const isActive = String(i) === String(currentPlayer);
         const isViewer = i === viewerIdx;
         const isDealer = dealer != null && i === dealer;
+        const isFirst = firstPlayer != null && i === firstPlayer;
         const label = playerNames?.[i]?.[0]?.toUpperCase() || String(i);
 
-        return { x, y, isActive, isViewer, isDealer, label, id: i };
+        return { x, y, isActive, isViewer, isDealer, isFirst, label, id: i };
     });
 
     return (
@@ -184,9 +185,20 @@ const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames, dealer })
                     zIndex: 2,
                 }} title={playerNames?.[p.id] || `Player ${p.id}`}>
                     {p.label}
-                    {p.isDealer && (
+                    {p.isFirst && (
                         <div style={{
                             position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)',
+                            width: '16px', height: '16px', zIndex: 3,
+                        }}>
+                            <svg viewBox="0 0 16 16" width="16" height="16">
+                                <rect x="1" y="2" width="14" height="12" rx="2" fill="#27ae60" stroke="#1e8449" strokeWidth="0.8" />
+                                <text x="8" y="9.5" textAnchor="middle" fontSize="7" fontWeight="bold" fill="white">1</text>
+                            </svg>
+                        </div>
+                    )}
+                    {p.isDealer && (
+                        <div style={{
+                            position: 'absolute', bottom: '-10px', left: '50%', transform: 'translateX(-50%)',
                             width: '16px', height: '16px', zIndex: 3,
                         }}>
                             <svg viewBox="0 0 16 16" width="16" height="16">
@@ -1045,7 +1057,8 @@ const Board = (props) => {
                                 currentPlayer={ctx.currentPlayer}
                                 playerID={playerID}
                                 playerNames={G.playerNames}
-                                dealer={ctx.gameover ? null : G.round % ctx.numPlayers}
+                                firstPlayer={ctx.gameover ? null : G.round % ctx.numPlayers}
+                                dealer={ctx.gameover ? null : (G.round + ctx.numPlayers - 1) % ctx.numPlayers}
                             />
                         </div>
 

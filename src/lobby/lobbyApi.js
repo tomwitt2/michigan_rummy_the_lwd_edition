@@ -52,6 +52,12 @@ export async function leaveMatch(matchID, { playerID, credentials }) {
     });
 }
 
+/** Fetch the PRNG seed for a match (for replay saves). */
+export async function getMatchSeed(matchID) {
+    const data = await request(`${BASE()}/${matchID}/seed`);
+    return data.seed;
+}
+
 /** Update player metadata (name, data). */
 export async function updatePlayer(matchID, { playerID, credentials, newName, data }) {
     return request(`${BASE()}/${matchID}/update`, {

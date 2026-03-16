@@ -20,6 +20,24 @@ const server = Server({
         : [Origins.LOCALHOST_IN_DEVELOPMENT],
 });
 
+// Expose the match seed for replay saves (not available via playerView)
+server.router.get('/games/lwd-rummy/:matchID/seed', async (ctx) => {
+    const { matchID } = ctx.params;
+    try {
+        const { initialState } = await server.db.fetch(matchID, { initialState: true });
+        const seed = initialState?.plugins?.random?.data?.seed;
+        if (!seed) {
+            ctx.status = 404;
+            ctx.body = { error: 'Seed not found' };
+            return;
+        }
+        ctx.body = { seed };
+    } catch (err) {
+        ctx.status = 500;
+        ctx.body = { error: 'Failed to fetch seed' };
+    }
+});
+
 // In production, serve the Vite-built frontend
 if (isProd) {
     const distPath = path.resolve(__dirname, '..', 'dist');

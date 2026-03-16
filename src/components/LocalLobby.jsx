@@ -1,6 +1,7 @@
 import React from 'react';
 import { pickBotNames } from '../bot/botNames.js';
 import { loadReplayFile } from '../replay/replayStorage.js';
+import { usePreference } from '../usePreference.js';
 
 export const LocalLobby = ({ onStart, onReplay }) => {
     const fileInputRef = React.useRef(null);
@@ -9,7 +10,7 @@ export const LocalLobby = ({ onStart, onReplay }) => {
         { name: '', isBot: false, botLevel: 'advanced' },
     ]);
     const [rules, setRules] = React.useState({ allowAdjacentWilds: false, allowLargeSets: false, mustPlayDiscardPickup: false, hintLayoff: false, hintSwapWild: false });
-    const [botDelay, setBotDelay] = React.useState(2);
+    const [botDelay, setBotDelay] = usePreference('botDelay', 2);
     const [devSeed, setDevSeed] = React.useState('');
     const [showAdmin, setShowAdmin] = React.useState(false);
 

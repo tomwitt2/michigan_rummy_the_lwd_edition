@@ -3,6 +3,7 @@ import { isWild, isValidSet, isValidRun, analyzeRun, RANKS } from '../game/logic
 import { buildReplayData, downloadReplay } from '../replay/replayStorage.js';
 import { Card, SUIT_ICONS, SUIT_COLORS, getInferredRank } from './Card.jsx';
 import { ErrorBoundary } from './ErrorBoundary.jsx';
+import { usePreference } from '../usePreference.js';
 
 const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames, dealer, firstPlayer }) => {
     const size = 110;
@@ -430,11 +431,11 @@ export const Board = (props) => {
     // Player name editing — which player ID is being edited (null = none)
     const [editingNameId, setEditingNameId] = React.useState(null);
     // Wild card sort mode: 'in-place' | 'left' | 'right'
-    const [wildSortMode, setWildSortMode] = React.useState('in-place');
+    const [wildSortMode, setWildSortMode] = usePreference('wildSortMode', 'in-place');
     // Chat system
     const [chatMessages, setChatMessages] = React.useState(props.initialChat || []);
     const [bulletMessages, setBulletMessages] = React.useState(props.initialBullets || []);
-    const [includeChatInReplay, setIncludeChatInReplay] = React.useState(true);
+    const [includeChatInReplay, setIncludeChatInReplay] = usePreference('includeChatInReplay', true);
     const chatInputRef = React.useRef(null);
     const sendChat = (senderID, text, isBullet) => {
         const msg = {

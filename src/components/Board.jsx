@@ -391,6 +391,10 @@ export const Board = (props) => {
     // Allows sorting/reordering without a boardgame.io move (works off-turn).
     const [localOrder, setLocalOrder] = React.useState(() => []);
     const prevHandRef = React.useRef(null);
+    const autoSortRef = React.useRef(autoSort);
+    autoSortRef.current = autoSort;
+    const wildSortModeRef = React.useRef(wildSortMode);
+    wildSortModeRef.current = wildSortMode;
     React.useEffect(() => {
         const hand = G.players?.[playerID]?.hand;
         if (!hand) return;
@@ -398,26 +402,50 @@ export const Board = (props) => {
         const oldHand = prevHandRef.current;
         prevHandRef.current = hand;
         setLocalOrder(prev => {
-            if (!oldHand || prev.length === 0) return hand.map((_, i) => i);
-
-            // Match old display-ordered cards to new hand indices
-            const available = hand.map((c, i) => ({ key: c.rank + c.suit, idx: i, used: false }));
-            const newOrder = [];
-            for (const oldActualIdx of prev) {
-                const oldCard = oldHand[oldActualIdx];
-                if (!oldCard) continue;
-                const oldKey = oldCard.rank + oldCard.suit;
-                const match = available.find(a => !a.used && a.key === oldKey);
-                if (match) {
-                    match.used = true;
-                    newOrder.push(match.idx);
+            let order;
+            if (!oldHand || prev.length === 0) {
+                order = hand.map((_, i) => i);
+            } else {
+                // Match old display-ordered cards to new hand indices
+                const available = hand.map((c, i) => ({ key: c.rank + c.suit, idx: i, used: false }));
+                const newOrder = [];
+                for (const oldActualIdx of prev) {
+                    const oldCard = oldHand[oldActualIdx];
+                    if (!oldCard) continue;
+                    const oldKey = oldCard.rank + oldCard.suit;
+                    const match = available.find(a => !a.used && a.key === oldKey);
+                    if (match) {
+                        match.used = true;
+                        newOrder.push(match.idx);
+                    }
                 }
+                // Append any new cards (e.g. drawn card) at end
+                for (const a of available) {
+                    if (!a.used) newOrder.push(a.idx);
+                }
+                order = newOrder.length === hand.length ? newOrder : hand.map((_, i) => i);
             }
-            // Append any new cards (e.g. drawn card) at end
-            for (const a of available) {
-                if (!a.used) newOrder.push(a.idx);
+
+            // Apply auto-sort if enabled
+            if (autoSortRef.current) {
+                const wsm = wildSortModeRef.current;
+                const sortRank = (card) => {
+                    if (isWild(card, G.round)) {
+                        if (wsm === 'left') return -1;
+                        if (wsm === 'right') return 14;
+                    }
+                    return RANKS.indexOf(card.rank);
+                };
+                const SUIT_ORDER = { H: 0, D: 1, C: 2, S: 3 };
+                order.sort((a, b) => {
+                    const ca = hand[a], cb = hand[b];
+                    const ra = sortRank(ca), rb = sortRank(cb);
+                    if (ra !== rb) return ra - rb;
+                    return SUIT_ORDER[ca.suit] - SUIT_ORDER[cb.suit];
+                });
             }
-            return newOrder.length === hand.length ? newOrder : hand.map((_, i) => i);
+
+            return order;
         });
     });
     const toActual = (displayIdx) => localOrder[displayIdx] ?? displayIdx;
@@ -787,22 +815,6 @@ export const Board = (props) => {
         setLocalOrder(sorted);
         setSelectedIndices([]);
     };
-
-    // Auto-sort: trigger sort when hand contents change
-    const handFingerprint = player.hand.map(c => c.rank + c.suit).join(',');
-    const prevFingerprintRef = React.useRef(handFingerprint);
-    React.useEffect(() => {
-        if (!autoSort) {
-            prevFingerprintRef.current = handFingerprint;
-            return;
-        }
-        if (handFingerprint !== prevFingerprintRef.current) {
-            prevFingerprintRef.current = handFingerprint;
-            // Defer sort to next tick so localOrder is updated first
-            const timer = setTimeout(sortHand, 0);
-            return () => clearTimeout(timer);
-        }
-    }, [handFingerprint, autoSort]);
 
     // Game-over state
     const gameOver = ctx.gameover;

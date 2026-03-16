@@ -1082,7 +1082,7 @@ export const Board = (props) => {
                                             wild={isWild(card, G.round)}
                                             selected={safeSelection.includes(i)}
                                             selectionIndex={safeSelection.indexOf(i)}
-                                            onClick={() => { if (dragIndex === null) toggleSelect(i); }}
+                                            onClick={() => { if (dragIndex === null && !gameOver) toggleSelect(i); }}
                                             draggable={true}
                                             onDragStart={(e) => {
                                                 setDragIndex(i);

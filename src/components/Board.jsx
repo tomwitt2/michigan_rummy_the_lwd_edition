@@ -449,10 +449,11 @@ export const Board = (props) => {
                 };
                 const SUIT_ORDER = { H: 0, D: 1, C: 2, S: 3 };
 
-                // Separate pinned and unpinned
+                // Separate pinned and unpinned (by card identity)
                 const unpinnedSlots = [];
                 for (let di = 0; di < order.length; di++) {
-                    if (!pinned.has(order[di])) unpinnedSlots.push(di);
+                    const c = hand[order[di]];
+                    if (!c || !pinned.has(c.rank + c.suit)) unpinnedSlots.push(di);
                 }
                 const unpinned = unpinnedSlots.map(di => order[di]);
                 unpinned.sort((a, b) => {
@@ -471,10 +472,11 @@ export const Board = (props) => {
     });
     const toActual = (displayIdx) => localOrder[displayIdx] ?? displayIdx;
 
-    // Pinned cards: Set of actual hand indices that should not be moved during sorting
+    // Pinned cards: Set of card identity strings (rank+suit) excluded from sorting
     const [pinnedCards, setPinnedCards] = React.useState(new Set());
     const pinnedCardsRef = React.useRef(pinnedCards);
     pinnedCardsRef.current = pinnedCards;
+    const cardKey = (c) => c.rank + c.suit;
 
     const [scoreDrawerOpen, setScoreDrawerOpen] = React.useState(true);
     const [scoreboardWidth, setScoreboardWidth] = React.useState(600);
@@ -737,18 +739,19 @@ export const Board = (props) => {
     const player = G.players[playerID];
     const isMyTurn = ctx.currentPlayer === playerID;
 
-    // Auto-clear selection and prune stale pins when hand shrinks
+    // Auto-clear selection when hand shrinks (card was played/discarded)
     const prevHandLen = React.useRef(player.hand.length);
     React.useEffect(() => {
         if (player.hand.length < prevHandLen.current) {
             selectedRef.current = [];
             _setSelectedIndices([]);
             setLayoffPick(null);
-            // Remove pins for indices that no longer exist
+            // Prune pins for cards no longer in hand
+            const currentKeys = new Set(player.hand.map(cardKey));
             setPinnedCards(prev => {
                 const valid = new Set();
-                for (const idx of prev) {
-                    if (idx < player.hand.length) valid.add(idx);
+                for (const k of prev) {
+                    if (currentKeys.has(k)) valid.add(k);
                 }
                 return valid.size === prev.size ? prev : valid;
             });
@@ -798,10 +801,11 @@ export const Board = (props) => {
     const toggleSelect = (i) => {
         // Unpin the card when selected
         const actualIdx = toActual(i);
-        if (pinnedCards.has(actualIdx)) {
+        const card = player.hand[actualIdx];
+        if (card && pinnedCards.has(cardKey(card))) {
             setPinnedCards(prev => {
                 const next = new Set(prev);
-                next.delete(actualIdx);
+                next.delete(cardKey(card));
                 return next;
             });
         }
@@ -820,12 +824,12 @@ export const Board = (props) => {
         const hand = player.hand;
         const sorted = [...localOrder];
 
-        // Separate pinned and unpinned positions
-        const pinnedPositions = new Map(); // displayIdx -> actualIdx
+        // Separate pinned and unpinned positions (by card identity)
         const unpinnedDisplayIdxs = [];
         for (let di = 0; di < sorted.length; di++) {
-            if (pinnedCards.has(sorted[di])) {
-                pinnedPositions.set(di, sorted[di]);
+            const c = hand[sorted[di]];
+            if (c && pinnedCards.has(cardKey(c))) {
+                // pinned — skip
             } else {
                 unpinnedDisplayIdxs.push(di);
             }
@@ -1202,8 +1206,9 @@ export const Board = (props) => {
                                                     const draggedActual = next[dragIndex];
                                                     const [removed] = next.splice(dragIndex, 1);
                                                     next.splice(i, 0, removed);
-                                                    // Pin the dragged card at its new position
-                                                    setPinnedCards(p => new Set(p).add(draggedActual));
+                                                    // Pin the dragged card by identity
+                                                    const draggedCard = player.hand[draggedActual];
+                                                    if (draggedCard) setPinnedCards(p => new Set(p).add(cardKey(draggedCard)));
                                                     return next;
                                                 });
                                                 setSelectedIndices([]);
@@ -1229,12 +1234,13 @@ export const Board = (props) => {
                                             selected={safeSelection.includes(i)}
                                             selectionIndex={safeSelection.indexOf(i)}
                                             highlighted={actualIdx === newCardIdx}
-                                            pinned={pinnedCards.has(actualIdx)}
+                                            pinned={pinnedCards.has(cardKey(card))}
                                             onTogglePin={() => {
+                                                const key = cardKey(card);
                                                 setPinnedCards(prev => {
                                                     const next = new Set(prev);
-                                                    if (next.has(actualIdx)) next.delete(actualIdx);
-                                                    else next.add(actualIdx);
+                                                    if (next.has(key)) next.delete(key);
+                                                    else next.add(key);
                                                     return next;
                                                 });
                                             }}

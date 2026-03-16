@@ -68,6 +68,27 @@ Output goes to `dist/`. The multiplayer server serves the built frontend automat
 NODE_ENV=production node server/index.js
 ```
 
+### Run with Docker
+
+Build and run in a single command:
+
+```bash
+docker compose up
+```
+
+Or manually:
+
+```bash
+docker build -t lwd-rummy .
+docker run -d --name lwd-rummy -p 8001:8001 lwd-rummy
+```
+
+The game is available at `http://<your-ip>:8001`. All players on the network connect to the same URL.
+
+To stop: `docker stop lwd-rummy && docker rm lwd-rummy`
+
+To rebuild after code changes: `docker stop lwd-rummy && docker rm lwd-rummy && docker build -t lwd-rummy . && docker run -d --name lwd-rummy -p 8001:8001 lwd-rummy`
+
 ### Run Tests
 
 ```bash
@@ -120,6 +141,7 @@ Load a previously saved replay file (`.json`) and step through the game action b
 - **Drawn card highlight** — Newly drawn card glows teal for 2 seconds
 - **Draw pile indicators** — Pulsing green glow on draw/discard piles when it's time to draw
 - **Click/drag to discard** — Click or drag a selected card onto the discard pile
+- **Status window** — Scrollable log next to the table ring showing turn changes, draws, melds, and round results. Toggle visibility with the `x` button or the "Status" button; preference is saved.
 - **Round-end popup** — Brief announcement when a player takes a round
 - **Chat & bullets** — In-game chat with a "bullet list" for memorable moments (up to 3 per player)
 - **Vote to end round** — Players can vote to end a round early when the deck has been flipped
@@ -135,6 +157,7 @@ Saved automatically in the browser (localStorage):
 
 - Wild sort mode
 - Auto-sort preference
+- Status window visibility
 - Bot delay
 - Include chat in replay
 - Online player name
@@ -206,6 +229,8 @@ family-card-engine/
       ReplayControls.jsx  # Replay playback controls
       replayStorage.js    # Replay file save/load
   dist/                   # Production build output
+  Dockerfile              # Multi-stage production build
+  docker-compose.yml      # Single-command Docker startup
   vite.config.js          # Vite configuration with proxy
   index.html              # HTML entry point
 ```
@@ -219,6 +244,7 @@ family-card-engine/
 | Build | Vite 7 |
 | PDF Export | jsPDF |
 | Multiplayer Transport | Socket.IO (via boardgame.io) |
+| Container | Docker (Node 22 Alpine, multi-stage) |
 | Testing | Jest (ESM) |
 
 ## Network Architecture

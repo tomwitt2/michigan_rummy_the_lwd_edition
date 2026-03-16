@@ -473,6 +473,8 @@ export const Board = (props) => {
     });
     const toActual = (displayIdx) => localOrder[displayIdx] ?? displayIdx;
 
+    const [showRules, setShowRules] = React.useState(false);
+
     // Pinned cards: Set of card identity strings (rank+suit) excluded from sorting
     const [pinnedCards, setPinnedCards] = React.useState(new Set());
     const pinnedCardsRef = React.useRef(pinnedCards);
@@ -921,6 +923,102 @@ export const Board = (props) => {
 
     return (
         <ErrorBoundary>
+            {/* Rules popup */}
+            {showRules && (
+                <div
+                    onClick={() => setShowRules(false)}
+                    style={{
+                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000,
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            background: 'white', borderRadius: '12px', padding: '24px 28px',
+                            maxWidth: '520px', width: '90%', maxHeight: '80vh', overflowY: 'auto',
+                            fontFamily: '"Arial", sans-serif', fontSize: '13px', lineHeight: 1.6,
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                        }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <h2 style={{ margin: 0, color: '#2c3e50', fontSize: '18px' }}>Michigan Rummy — LWD Rules</h2>
+                            <button
+                                onClick={() => setShowRules(false)}
+                                style={{
+                                    width: '28px', height: '28px', borderRadius: '50%', border: 'none',
+                                    background: '#eee', color: '#666', cursor: 'pointer', fontSize: '16px',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold',
+                                }}
+                            >X</button>
+                        </div>
+
+                        <h3 style={{ color: '#2c3e50', margin: '12px 0 4px', fontSize: '14px' }}>Overview</h3>
+                        <p style={{ margin: '0 0 8px' }}>
+                            Play 13 rounds (Ace through King). Each round, one rank is wild. Go out by emptying your hand. Lowest total score wins.
+                        </p>
+
+                        <h3 style={{ color: '#2c3e50', margin: '12px 0 4px', fontSize: '14px' }}>Round Setup</h3>
+                        <ul style={{ margin: '0 0 8px', paddingLeft: '20px' }}>
+                            <li>First player gets 8 cards, everyone else gets 7</li>
+                            <li>First player starts by melding or discarding (no draw)</li>
+                            <li>All other turns: draw one card, then meld/discard</li>
+                        </ul>
+
+                        <h3 style={{ color: '#2c3e50', margin: '12px 0 4px', fontSize: '14px' }}>On Your Turn</h3>
+                        <ol style={{ margin: '0 0 8px', paddingLeft: '20px' }}>
+                            <li><strong>Draw</strong> from the draw pile or discard pile</li>
+                            <li><strong>Play</strong> melds, lay offs, or wild swaps (optional)</li>
+                            <li><strong>Discard</strong> one card to end your turn</li>
+                        </ol>
+
+                        <h3 style={{ color: '#2c3e50', margin: '12px 0 4px', fontSize: '14px' }}>Melds</h3>
+                        <ul style={{ margin: '0 0 8px', paddingLeft: '20px' }}>
+                            <li><strong>Set</strong>: 3–4 cards of the same rank (e.g. 7&#9829; 7&#9827; 7&#9824;)</li>
+                            <li><strong>Run</strong>: 3+ consecutive cards of the same suit (e.g. 4&#9829; 5&#9829; 6&#9829;)</li>
+                            <li>Wild cards can substitute for any card in a meld</li>
+                        </ul>
+
+                        <h3 style={{ color: '#2c3e50', margin: '12px 0 4px', fontSize: '14px' }}>After Melding ("On the Board")</h3>
+                        <ul style={{ margin: '0 0 8px', paddingLeft: '20px' }}>
+                            <li><strong>Lay Off</strong>: Add a card from your hand to any meld on the board</li>
+                            <li><strong>Wild Swap</strong>: Replace a wild card in a meld with the natural card from your hand</li>
+                        </ul>
+
+                        <h3 style={{ color: '#2c3e50', margin: '12px 0 4px', fontSize: '14px' }}>Scoring</h3>
+                        <ul style={{ margin: '0 0 8px', paddingLeft: '20px' }}>
+                            <li>Round winner scores 0</li>
+                            <li>Everyone else scores the total value of cards left in hand</li>
+                            <li>Number cards = face value, Face cards (J/Q/K) = 10, Aces = 15, Wilds = 20</li>
+                        </ul>
+
+                        <h3 style={{ color: '#2c3e50', margin: '12px 0 4px', fontSize: '14px' }}>Controls</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '2px 12px', fontSize: '12px' }}>
+                            {[
+                                ['n / o', 'Draw from deck / discard pile'],
+                                ['d', 'Discard selected card'],
+                                ['m', 'Play selected cards as a meld'],
+                                ['l', 'Lay off selected card'],
+                                ['w', 'Swap wild with selected card'],
+                                ['s', 'Sort hand'],
+                                ['c', 'Cycle wild card sort placement'],
+                                ['u', 'Undo last lay off or wild swap'],
+                                ['t', 'Focus chat input'],
+                                ['*', 'Toggle admin controls'],
+                            ].map(([key, desc]) => (
+                                <React.Fragment key={key}>
+                                    <code style={{
+                                        background: '#f0f0f0', padding: '1px 6px', borderRadius: '3px',
+                                        fontWeight: 'bold', color: '#333', fontSize: '12px', textAlign: 'center',
+                                    }}>{key}</code>
+                                    <span>{desc}</span>
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Round-end popup */}
             {roundEndMsg && (
                 <div style={{
@@ -1096,9 +1194,19 @@ export const Board = (props) => {
                                 </span>
                             </h2>
                                 </div>
-                                <span style={{ fontSize: '13px', color: '#555', fontWeight: 'bold', whiteSpace: 'nowrap', marginBottom: '1px' }}>
-                                    Round {G.round + 1} · Wild: {RANKS[G.round % 13]}
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1px' }}>
+                                    <span style={{ fontSize: '13px', color: '#555', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                        Round {G.round + 1} · Wild: {RANKS[G.round % 13]}
+                                    </span>
+                                    <button
+                                        onClick={() => setShowRules(true)}
+                                        style={{
+                                            padding: '1px 8px', borderRadius: '4px', border: '1px solid #bbb',
+                                            background: '#f8f9fa', color: '#666', cursor: 'pointer',
+                                            fontSize: '11px', fontWeight: 'bold',
+                                        }}
+                                    >Rules</button>
+                                </div>
                             </div>
                             <TableRing
                                 numPlayers={ctx.numPlayers}

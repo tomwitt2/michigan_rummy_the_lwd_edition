@@ -954,18 +954,22 @@ export const Board = (props) => {
                         <div style={{ display: 'flex', gap: '8px', marginTop: '4px', marginBottom: '6px' }}>
                             <div style={{ background: '#eee', padding: '6px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '16px' }}>
                                 {/* Draw Pile card */}
+                                {(() => {
+                                    const needsDraw = isMyTurn && !G.hasDrawn && !G.isFirstTurn;
+                                    return (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <div
                                         onClick={() => { if (!G.hasDrawn) moves.drawCard(true); }}
                                         title={`Draw Pile (n) — ${G.deck.length} cards`}
                                         style={{
                                             width: '48px', height: '68px', borderRadius: '5px',
-                                            border: '1px solid #999',
+                                            border: needsDraw ? '2px solid #27ae60' : '1px solid #999',
                                             background: 'linear-gradient(135deg, #1a5276 0%, #2471a3 40%, #1a5276 60%, #154360 100%)',
                                             cursor: !G.hasDrawn ? 'pointer' : 'default',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            boxShadow: '1px 1px 3px rgba(0,0,0,0.2)',
+                                            boxShadow: needsDraw ? '0 0 8px rgba(39,174,96,0.6)' : '1px 1px 3px rgba(0,0,0,0.2)',
                                             position: 'relative',
+                                            animation: needsDraw ? 'draw-pulse 1.5s ease-in-out infinite' : 'none',
                                         }}
                                     >
                                         {/* Card back pattern */}
@@ -988,12 +992,15 @@ export const Board = (props) => {
                                         {G.flipCount > 0 && <div style={{ color: '#8e44ad', fontSize: '10px' }}>Flips: {G.flipCount}</div>}
                                     </div>
                                 </div>
+                                    );
+                                })()}
                                 {/* Discard Pile card */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     {(() => {
                                         const topCard = G.discardPile?.length > 0 ? G.discardPile[G.discardPile.length - 1] : null;
                                         const mustMeldFirst = G.mustMeldAfterDiscard && !G.playedCardThisTurn;
                                         const canDiscardHere = safeSelection.length === 1 && (G.hasDrawn || G.isFirstTurn) && isMyTurn && !mustMeldFirst;
+                                        const canDrawFromDiscard = isMyTurn && !G.hasDrawn && !G.isFirstTurn && topCard;
                                         const handleDiscardPileClick = () => {
                                             if (canDiscardHere) {
                                                 moves.discardCard(toActual(safeSelection[0]));
@@ -1018,13 +1025,14 @@ export const Board = (props) => {
                                                 title={canDiscardHere ? 'Click or drop to discard selected card' : topCard ? `Discard Pile (o) — ${topCard.rank}${SUIT_ICONS[topCard.suit]} (${G.discardPile.length} cards)` : 'Discard Pile — Empty'}
                                                 style={{
                                                     width: '48px', height: '68px', borderRadius: '5px',
-                                                    border: canDiscardHere ? '2px solid #e74c3c' : topCard ? '1px solid #ccc' : '1px dashed #bbb',
+                                                    border: canDiscardHere ? '2px solid #e74c3c' : canDrawFromDiscard ? '2px solid #27ae60' : topCard ? '1px solid #ccc' : '1px dashed #bbb',
                                                     background: canDiscardHere ? '#fdecea' : topCard ? 'white' : '#f5f5f5',
-                                                    cursor: canDiscardHere || (!G.hasDrawn && topCard) ? 'pointer' : 'default',
+                                                    cursor: canDiscardHere || canDrawFromDiscard ? 'pointer' : 'default',
                                                     display: 'flex', flexDirection: 'column',
                                                     alignItems: 'center', justifyContent: 'center',
-                                                    boxShadow: canDiscardHere ? '0 0 6px rgba(231,76,60,0.4)' : topCard ? '1px 1px 3px rgba(0,0,0,0.15)' : 'none',
+                                                    boxShadow: canDiscardHere ? '0 0 6px rgba(231,76,60,0.4)' : canDrawFromDiscard ? '0 0 8px rgba(39,174,96,0.6)' : topCard ? '1px 1px 3px rgba(0,0,0,0.15)' : 'none',
                                                     transition: 'all 0.15s ease',
+                                                    animation: canDrawFromDiscard && !canDiscardHere ? 'draw-pulse 1.5s ease-in-out infinite' : 'none',
                                                 }}
                                             >
                                                 {topCard ? (<>

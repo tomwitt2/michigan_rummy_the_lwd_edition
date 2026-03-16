@@ -8,6 +8,11 @@
   <style>
     /* Push game content left so boardgame.io debug panel never overlays */
     body:has(.debug-panel) #root { margin-right: 300px; }
+    /* Pulsing glow for draw piles when player needs to draw */
+    @keyframes draw-pulse {
+      0%, 100% { box-shadow: 0 0 4px rgba(39,174,96,0.3); }
+      50% { box-shadow: 0 0 12px rgba(39,174,96,0.7); }
+    }
   </style>
 </head>
 

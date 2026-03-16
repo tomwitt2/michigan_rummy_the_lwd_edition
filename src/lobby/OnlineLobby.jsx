@@ -1,9 +1,25 @@
 import React from 'react';
-import { listMatches, joinMatch, createMatch } from './lobbyApi.js';
+import { listMatches, joinMatch, createMatch, getMatch } from './lobbyApi.js';
 import { TableCard } from './TableCard.jsx';
 import { CreateTableDialog } from './CreateTableDialog.jsx';
 import { WaitingRoom } from './WaitingRoom.jsx';
 import { MultiplayerGameBoard } from '../components/MultiplayerGameBoard.jsx';
+
+const SESSION_KEY = 'lwd-rummy-session';
+
+function saveSession(data) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+}
+
+function loadSession() {
+    try {
+        return JSON.parse(localStorage.getItem(SESSION_KEY));
+    } catch { return null; }
+}
+
+function clearSession() {
+    localStorage.removeItem(SESSION_KEY);
+}
 
 export const OnlineLobby = ({ playerName, onBack }) => {
     const [matches, setMatches] = React.useState([]);
@@ -11,6 +27,39 @@ export const OnlineLobby = ({ playerName, onBack }) => {
     const [showCreate, setShowCreate] = React.useState(false);
     const [joinedMatch, setJoinedMatch] = React.useState(null); // { matchID, playerID, credentials }
     const [activeGame, setActiveGame] = React.useState(null);
+    const [reconnecting, setReconnecting] = React.useState(true);
+
+    // Attempt to reconnect to a saved session on mount
+    React.useEffect(() => {
+        const session = loadSession();
+        if (!session) { setReconnecting(false); return; }
+
+        getMatch(session.matchID).then(match => {
+            // Verify our seat is still ours
+            const seat = match.players.find(p => String(p.id) === session.playerID);
+            if (!seat || seat.name !== session.playerName) {
+                clearSession();
+                setReconnecting(false);
+                return;
+            }
+
+            if (session.activeGame) {
+                // Reconnect directly to the game
+                setActiveGame(session.activeGame);
+            } else {
+                // Reconnect to the waiting room
+                setJoinedMatch({
+                    matchID: session.matchID,
+                    playerID: session.playerID,
+                    credentials: session.credentials,
+                });
+            }
+            setReconnecting(false);
+        }).catch(() => {
+            clearSession();
+            setReconnecting(false);
+        });
+    }, []);
 
     // Poll open matches
     React.useEffect(() => {
@@ -41,7 +90,9 @@ export const OnlineLobby = ({ playerName, onBack }) => {
                 playerName,
             });
             setShowCreate(false);
-            setJoinedMatch({ matchID, playerID: '0', credentials: playerCredentials });
+            const match = { matchID, playerID: '0', credentials: playerCredentials };
+            setJoinedMatch(match);
+            saveSession({ ...match, playerName });
         } catch (err) {
             setError(`Failed to create table: ${err.message}`);
         }
@@ -61,25 +112,39 @@ export const OnlineLobby = ({ playerName, onBack }) => {
                 playerID: String(openSeat.id),
                 playerName,
             });
-            setJoinedMatch({ matchID, playerID: String(openSeat.id), credentials: playerCredentials });
+            const match = { matchID, playerID: String(openSeat.id), credentials: playerCredentials };
+            setJoinedMatch(match);
+            saveSession({ ...match, playerName });
         } catch (err) {
             setError(`Failed to join: ${err.message}`);
         }
     };
 
     const handleGameStart = React.useCallback((matchData, botCredentials, botConfigs) => {
-        setActiveGame({
+        const game = {
             matchID: joinedMatch.matchID,
             playerID: joinedMatch.playerID,
             credentials: joinedMatch.credentials,
             botCredentials: botCredentials || {},
             botConfigs: botConfigs || {},
-        });
-    }, [joinedMatch]);
+        };
+        setActiveGame(game);
+        saveSession({ matchID: game.matchID, playerID: game.playerID, credentials: game.credentials, playerName, activeGame: game });
+    }, [joinedMatch, playerName]);
 
     const handleLeaveTable = () => {
         setJoinedMatch(null);
+        clearSession();
     };
+
+    // Reconnecting — show loading
+    if (reconnecting) {
+        return (
+            <div style={{ padding: '40px', fontFamily: '"Arial", sans-serif', textAlign: 'center' }}>
+                <h2 style={{ color: '#2c3e50' }}>Reconnecting...</h2>
+            </div>
+        );
+    }
 
     // Show game board if game started
     if (activeGame) {
@@ -93,6 +158,7 @@ export const OnlineLobby = ({ playerName, onBack }) => {
                 onLeave={() => {
                     setActiveGame(null);
                     setJoinedMatch(null);
+                    clearSession();
                 }}
             />
         );

@@ -24,12 +24,8 @@ export function MultiplayerBotController({ matchID, botCredentials, botConfigs =
 
     useEffect(() => {
         unmountedRef.current = false;
-        console.log('[BotController] Mounting with botCredentials:', botCredentials);
         const botIDs = Object.keys(botCredentials);
-        if (botIDs.length === 0) {
-            console.log('[BotController] No bot credentials — skipping');
-            return;
-        }
+        if (botIDs.length === 0) return;
 
         const server = SERVER_URL || window.location.origin;
         const clients = {};
@@ -75,7 +71,6 @@ export function MultiplayerBotController({ matchID, botCredentials, botConfigs =
             if (!state || !state.G || !state.ctx || state.ctx.gameover) return;
             if (state.ctx.currentPlayer !== botID) return;
 
-            console.log(`[BotController] Bot ${botID} starting turn`);
             entry.acting = true;
 
             function doNextAction() {
@@ -85,25 +80,16 @@ export function MultiplayerBotController({ matchID, botCredentials, botConfigs =
                 }
 
                 const s = entry.client.getState();
-                console.log(`[BotController] Bot ${botID} doNextAction`, {
-                    hasState: !!s,
-                    currentPlayer: s?.ctx?.currentPlayer,
-                    hasDrawn: s?.G?.hasDrawn,
-                    handSize: s?.G?.players?.[botID]?.hand?.length,
-                });
                 if (!s || s.ctx.currentPlayer !== botID || s.ctx.gameover) {
-                    console.log(`[BotController] Bot ${botID} turn ended or state lost`);
                     entry.acting = false;
                     return;
                 }
 
                 const action = decideNextAction(s.G, s.ctx, botID, getLevel(botID));
-                console.log(`[BotController] Bot ${botID} action:`, action);
                 if (!action) {
                     // Fallback: force discard
                     const hand = s.G.players[botID]?.hand;
                     if (hand && hand.length > 0 && s.G.hasDrawn) {
-                        console.log(`[BotController] Bot ${botID} fallback discard`);
                         entry.client.moves.discardCard(0);
                     }
                     entry.acting = false;
@@ -144,13 +130,7 @@ export function MultiplayerBotController({ matchID, botCredentials, botConfigs =
         // Subscribe each bot client
         const unsubs = [];
         for (const botID of botIDs) {
-            console.log(`[BotController] Setting up bot ${botID} with credentials: ${botCredentials[botID] ? 'YES' : 'NO'}`);
-            const unsub = clients[botID].client.subscribe((state) => {
-                console.log(`[BotController] Bot ${botID} subscribe fired`, {
-                    hasState: !!state,
-                    currentPlayer: state?.ctx?.currentPlayer,
-                    acting: clients[botID].acting,
-                });
+            const unsub = clients[botID].client.subscribe(() => {
                 if (!clients[botID].acting) {
                     checkBotVotes(botID);
                     tryBotTurn(botID);

@@ -4,6 +4,7 @@ import { buildReplayData, downloadReplay } from '../replay/replayStorage.js';
 import { Card, SUIT_ICONS, SUIT_COLORS, getInferredRank } from './Card.jsx';
 import { ErrorBoundary } from './ErrorBoundary.jsx';
 import { usePreference } from '../usePreference.js';
+import { exportScoreboardPDF } from '../pdfExport.js';
 
 const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames, dealer, firstPlayer }) => {
     const size = 110;
@@ -959,6 +960,20 @@ export const Board = (props) => {
                                 <span>Tie: {winners.map(id => getPlayerName(id)).join(' & ')}!</span>
                             )}
                         </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <button
+                                    onClick={() => exportScoreboardPDF({
+                                        G, numPlayers: ctx.numPlayers,
+                                        playerNames: G.playerNames,
+                                        bulletMessages,
+                                    })}
+                                    style={{
+                                        padding: '5px 16px', borderRadius: '6px', border: '2px solid #fff',
+                                        background: 'transparent', color: '#fff', cursor: 'pointer',
+                                        fontSize: '14px', fontWeight: 'bold',
+                                    }}
+                                >Export PDF</button>
+                        </div>
                         {log && props.gameSeed && showAdmin && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <button

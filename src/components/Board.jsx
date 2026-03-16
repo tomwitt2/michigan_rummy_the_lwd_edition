@@ -988,6 +988,7 @@ export const Board = (props) => {
                                             log,
                                             chatMessages: includeChatInReplay ? chatMessages : undefined,
                                             bulletMessages: bulletMessages.length > 0 ? bulletMessages : undefined,
+                                            bots: props.bots,
                                         });
                                         downloadReplay(replayData);
                                     }}
@@ -1556,6 +1557,7 @@ export const Board = (props) => {
                                                 log,
                                                 chatMessages: includeChatInReplay ? chatMessages : undefined,
                                                 bulletMessages: bulletMessages.length > 0 ? bulletMessages : undefined,
+                                                bots: props.bots,
                                             });
                                             downloadReplay(replayData);
                                         }}

@@ -49,6 +49,7 @@ export const ManualGameBoard = ({ gameConfig, onNewGame }) => {
                     gameSeed={seedRef.current}
                     isActive={gameState.ctx?.currentPlayer === '0'}
                     onNewGame={onNewGame}
+                    bots={gameConfig.bots}
                 />
             </div>
             <BotController

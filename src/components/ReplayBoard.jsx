@@ -2,6 +2,7 @@ import React from 'react';
 import { ReplayEngine } from '../replay/ReplayEngine.js';
 import { ReplayControls } from '../replay/ReplayControls.jsx';
 import { Board } from './Board.jsx';
+import { BotController } from '../bot/BotController.jsx';
 
 export const ReplayBoard = ({ replayData, onExit }) => {
     const engineRef = React.useRef(null);
@@ -41,9 +42,13 @@ export const ReplayBoard = ({ replayData, onExit }) => {
         const state = liveState || client.getState();
         if (!state) return <div>Loading...</div>;
 
+        const bots = replayData.bots || {};
+        const hasBots = Object.keys(bots).length > 0;
+
         // Ensure client playerID matches the current player so moves are authorized
+        // (only for human players — bots are driven by BotController)
         const currentPlayer = state.ctx.currentPlayer;
-        if (client.playerID !== currentPlayer) {
+        if (!bots[currentPlayer] && client.playerID !== currentPlayer) {
             client.updatePlayerID(currentPlayer);
         }
 
@@ -73,10 +78,19 @@ export const ReplayBoard = ({ replayData, onExit }) => {
                             moves={client.moves}
                             log={state.log}
                             gameSeed={replayData.seed}
+                            bots={bots}
                             initialChat={replayChatMessages}
                             initialBullets={replayBulletMessages}
                         />
                     </div>
+                    {hasBots && (
+                        <BotController
+                            client={client}
+                            botConfigs={bots}
+                            botDelay={2}
+                            humanPlayerID="0"
+                        />
+                    )}
                 </div>
             </div>
         );

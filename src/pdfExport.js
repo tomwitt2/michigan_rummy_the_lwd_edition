@@ -22,8 +22,20 @@ export function exportScoreboardPDF({ G, numPlayers, playerNames, bulletMessages
 
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('Michigan Rummy — LWD', LEFT_MARGIN, y);
-    y += 6;
+    doc.text('MICHIGAN RUMMY', LEFT_MARGIN, y);
+    const titleWidth = doc.getTextWidth('MICHIGAN RUMMY');
+    const nameX = LEFT_MARGIN + titleWidth + 3;
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Lott', nameX, y - 4);
+    doc.text('Wittbrodt', nameX, y - 1.5);
+    doc.text('Dlogolpolski', nameX, y + 1);
+    // Bold the first letter of each name
+    doc.setFont('helvetica', 'bold');
+    doc.text('L', nameX, y - 4);
+    doc.text('W', nameX, y - 1.5);
+    doc.text('D', nameX, y + 1);
+    y += 4;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(dateStr, LEFT_MARGIN, y);

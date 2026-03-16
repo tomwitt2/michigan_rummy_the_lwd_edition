@@ -30,7 +30,6 @@ export function exportScoreboardPDF({ G, numPlayers, playerNames, bulletMessages
     doc.text('Lott', nameX, y - 4);
     doc.text('Wittbrodt', nameX, y - 1.5);
     doc.text('Dlogolpolski', nameX, y + 1);
-    // Bold the first letter of each name
     doc.setFont('helvetica', 'bold');
     doc.text('L', nameX, y - 4);
     doc.text('W', nameX, y - 1.5);
@@ -43,30 +42,73 @@ export function exportScoreboardPDF({ G, numPlayers, playerNames, bulletMessages
 
     // --- Scoreboard Table ---
     const names = Array.from({ length: numPlayers }, (_, i) => playerNames?.[i] || playerNames?.[String(i)] || `Player ${i}`);
-    const colWidth = Math.min(22, (usableWidth - 14) / numPlayers); // Rd col ~14mm
+    const colWidth = Math.min(22, (usableWidth - 14) / numPlayers);
     const rdColWidth = 14;
-    const tableWidth = rdColWidth + colWidth * numPlayers;
-    const rowHeight = 5.5;
+    const rowHeight = 6;
     const headerHeight = 7;
 
-    // Helper: draw a cell
-    const drawCell = (x, w, h, text, opts = {}) => {
-        const { bold, fill, align, fontSize, border } = {
-            bold: false, fill: null, align: 'center', fontSize: 8, border: true, ...opts
-        };
+    // Helper: draw cell background and border
+    const drawCellBg = (x, w, h, fill) => {
         if (fill) {
             doc.setFillColor(...fill);
             doc.rect(x, y, w, h, 'F');
         }
-        if (border !== false) {
-            doc.setDrawColor(180);
-            doc.rect(x, y, w, h, 'S');
-        }
+        doc.setDrawColor(180);
+        doc.rect(x, y, w, h, 'S');
+    };
+
+    // Helper: draw simple text cell
+    const drawCell = (x, w, h, text, opts = {}) => {
+        const { bold, fill, align, fontSize } = {
+            bold: false, fill: null, align: 'center', fontSize: 8, ...opts
+        };
+        drawCellBg(x, w, h, fill);
         doc.setFont('helvetica', bold ? 'bold' : 'normal');
         doc.setFontSize(fontSize);
         doc.setTextColor(0);
         const textX = align === 'center' ? x + w / 2 : align === 'right' ? x + w - 1.5 : x + 1.5;
         doc.text(String(text), textX, y + h / 2 + 1.2, { align });
+    };
+
+    // Helper: draw score cell with running total + colored superscript delta
+    const drawScoreCell = (x, w, h, total, delta, isWinner) => {
+        const fill = isWinner ? [234, 250, 241] : null; // light green for winner
+        drawCellBg(x, w, h, fill);
+
+        const centerX = x + w / 2;
+        const baseY = y + h / 2 + 1.2;
+
+        // Main score (running total)
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(0);
+        const totalStr = String(total);
+        const totalWidth = doc.getTextWidth(totalStr);
+
+        if (isWinner) {
+            // Winner: show total in green, no delta (delta is 0)
+            doc.setTextColor(39, 174, 96); // green
+            doc.text(totalStr, centerX, baseY, { align: 'center' });
+        } else {
+            // Non-winner: total + superscript delta
+            const deltaStr = `+${delta}`;
+            doc.setFontSize(5.5);
+            const deltaWidth = doc.getTextWidth(deltaStr);
+            const fullWidth = totalWidth + 1 + deltaWidth;
+            const startX = centerX - fullWidth / 2;
+
+            // Draw total
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0);
+            doc.text(totalStr, startX, baseY);
+
+            // Draw delta as superscript in red
+            doc.setFontSize(5.5);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(200, 50, 50); // red
+            doc.text(deltaStr, startX + totalWidth + 0.8, baseY - 1.8);
+        }
     };
 
     // Header row
@@ -91,18 +133,13 @@ export function exportScoreboardPDF({ G, numPlayers, playerNames, bulletMessages
         for (let i = 0; i < numPlayers; i++) {
             const x = LEFT_MARGIN + rdColWidth + i * colWidth;
             if (isPlayed) {
-                // Running total up to this round
                 let total = 0;
                 for (const h of scoreHistory) {
                     if (h.round <= r) total += (h.scores[String(i)] || 0);
                 }
                 const delta = roundData.scores[String(i)] || 0;
                 const isWinner = roundData.winner === String(i);
-                const cellText = isWinner ? `${total}` : `${total} +${delta}`;
-                drawCell(x, colWidth, rowHeight, cellText, {
-                    fontSize: 7,
-                    fill: isWinner ? [255, 248, 225] : null,
-                });
+                drawScoreCell(x, colWidth, rowHeight, total, delta, isWinner);
             } else {
                 drawCell(x, colWidth, rowHeight, r === G.round ? '...' : '', { fontSize: 7 });
             }
@@ -152,10 +189,10 @@ export function exportScoreboardPDF({ G, numPlayers, playerNames, bulletMessages
     if (bullets.length > 0) {
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0);
         doc.text('The Bullet List', LEFT_MARGIN, y);
         y += 6;
 
-        // Group by player
         const byPlayer = {};
         for (const b of bullets) {
             const name = b.playerName || playerNames?.[b.playerID] || `Player ${b.playerID}`;
@@ -166,12 +203,14 @@ export function exportScoreboardPDF({ G, numPlayers, playerNames, bulletMessages
         for (const [name, playerBullets] of Object.entries(byPlayer)) {
             doc.setFontSize(10);
             doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0);
             doc.text(name, LEFT_MARGIN, y);
             y += 4.5;
 
             for (const b of playerBullets) {
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'normal');
+                doc.setTextColor(0);
                 const roundLabel = b.round != null ? ` (R${b.round + 1})` : '';
                 const line = `\u2022  ${b.text}${roundLabel}`;
                 const lines = doc.splitTextToSize(line, usableWidth - 5);

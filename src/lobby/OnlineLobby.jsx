@@ -121,9 +121,16 @@ export const OnlineLobby = ({ playerName, onBack }) => {
         <div style={{ padding: '40px', fontFamily: '"Arial", sans-serif', maxWidth: '700px', margin: '0 auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
                 <div>
-                    <h1 style={{ color: '#2c3e50', textTransform: 'uppercase', letterSpacing: '2px', margin: 0 }}>
-                        Michigan Rummy
-                    </h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <h1 style={{ color: '#2c3e50', textTransform: 'uppercase', letterSpacing: '2px', margin: 0 }}>
+                            Michigan Rummy
+                        </h1>
+                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.1, color: '#888', fontSize: '0.55em', fontWeight: 'normal' }}>
+                            <span><strong>L</strong>ott</span>
+                            <span><strong>W</strong>ittbrodt</span>
+                            <span><strong>D</strong>logolpolski</span>
+                        </div>
+                    </div>
                     <h2 style={{ color: '#666', fontWeight: 'normal', margin: '4px 0 0' }}>Online Lobby</h2>
                 </div>
                 <div style={{ textAlign: 'right' }}>

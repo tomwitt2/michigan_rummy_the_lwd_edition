@@ -15,7 +15,14 @@ export const PlayerIdentity = ({ onReady }) => {
 
     return (
         <div style={{ padding: '40px', fontFamily: '"Arial", sans-serif', maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
-            <h1 style={{ color: '#2c3e50', textTransform: 'uppercase', letterSpacing: '2px' }}>Michigan Rummy</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <h1 style={{ color: '#2c3e50', textTransform: 'uppercase', letterSpacing: '2px', margin: 0 }}>Michigan Rummy</h1>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.1, color: '#888', fontSize: '0.55em', fontWeight: 'normal', textAlign: 'left' }}>
+                    <span><strong>L</strong>ott</span>
+                    <span><strong>W</strong>ittbrodt</span>
+                    <span><strong>D</strong>logolpolski</span>
+                </div>
+            </div>
             <h2 style={{ color: '#666', fontWeight: 'normal' }}>Online Play</h2>
             <form onSubmit={handleSubmit} style={{ marginTop: '30px' }}>
                 <label style={{ display: 'block', marginBottom: '10px', fontSize: '14px', color: '#555', fontWeight: 'bold' }}>

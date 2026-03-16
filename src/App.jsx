@@ -57,9 +57,16 @@ const App = () => {
     // Landing page — mode selector
     return (
         <div style={{ padding: '60px 40px', fontFamily: '"Arial", sans-serif', maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
-            <h1 style={{ color: '#2c3e50', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>
-                Michigan Rummy
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                <h1 style={{ color: '#2c3e50', textTransform: 'uppercase', letterSpacing: '2px', margin: 0 }}>
+                    Michigan Rummy
+                </h1>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.1, color: '#888', fontSize: '0.55em', fontWeight: 'normal', textAlign: 'left' }}>
+                    <span><strong>L</strong>ott</span>
+                    <span><strong>W</strong>ittbrodt</span>
+                    <span><strong>D</strong>logolpolski</span>
+                </div>
+            </div>
             <p style={{ color: '#888', fontSize: '14px', marginBottom: '40px' }}>Choose how to play</p>
 
             <button

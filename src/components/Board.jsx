@@ -432,6 +432,7 @@ export const Board = (props) => {
     const [editingNameId, setEditingNameId] = React.useState(null);
     // Wild card sort mode: 'in-place' | 'left' | 'right'
     const [wildSortMode, setWildSortMode] = usePreference('wildSortMode', 'in-place');
+    const [autoSort, setAutoSort] = usePreference('autoSort', false);
     // Chat system
     const [chatMessages, setChatMessages] = React.useState(props.initialChat || []);
     const [bulletMessages, setBulletMessages] = React.useState(props.initialBullets || []);
@@ -786,6 +787,22 @@ export const Board = (props) => {
         setLocalOrder(sorted);
         setSelectedIndices([]);
     };
+
+    // Auto-sort: trigger sort when hand contents change
+    const handFingerprint = player.hand.map(c => c.rank + c.suit).join(',');
+    const prevFingerprintRef = React.useRef(handFingerprint);
+    React.useEffect(() => {
+        if (!autoSort) {
+            prevFingerprintRef.current = handFingerprint;
+            return;
+        }
+        if (handFingerprint !== prevFingerprintRef.current) {
+            prevFingerprintRef.current = handFingerprint;
+            // Defer sort to next tick so localOrder is updated first
+            const timer = setTimeout(sortHand, 0);
+            return () => clearTimeout(timer);
+        }
+    }, [handFingerprint, autoSort]);
 
     // Game-over state
     const gameOver = ctx.gameover;
@@ -1167,6 +1184,18 @@ export const Board = (props) => {
                                         background: '#f0f0f0', color: '#555', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold',
                                     }}
                                 >Sort Cards (s)</button>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: '#666', cursor: 'pointer', userSelect: 'none' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={autoSort}
+                                        onChange={(e) => {
+                                            setAutoSort(e.target.checked);
+                                            if (e.target.checked) sortHand();
+                                        }}
+                                        style={{ width: '13px', height: '13px', cursor: 'pointer' }}
+                                    />
+                                    Auto-sort
+                                </label>
                             </div>
                         </div>
 

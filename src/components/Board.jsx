@@ -492,6 +492,7 @@ export const Board = (props) => {
     // Wild card sort mode: 'in-place' | 'left' | 'right'
     const [wildSortMode, setWildSortMode] = usePreference('wildSortMode', 'in-place');
     const [autoSort, setAutoSort] = usePreference('autoSort', false);
+    const [showStatus, setShowStatus] = usePreference('showStatus', true);
     autoSortRef.current = autoSort;
     wildSortModeRef.current = wildSortMode;
     // Status log — rolling list of game events
@@ -1276,23 +1277,46 @@ export const Board = (props) => {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 {/* Status window */}
-                                <div style={{
-                                    width: '200px', height: '80px', overflowY: 'auto',
-                                    background: '#f8f9fa', border: '1px solid #ddd', borderRadius: '6px',
-                                    padding: '4px 8px', fontSize: '11px', lineHeight: 1.4,
-                                    color: '#555', flexShrink: 0,
-                                }}
-                                    ref={el => {
-                                        if (el) el.scrollTop = el.scrollHeight;
-                                    }}
-                                >
-                                    {statusLog.map((msg, i) => (
-                                        <div key={i} style={{
-                                            color: i === statusLog.length - 1 ? '#2c3e50' : '#999',
-                                            fontWeight: i === statusLog.length - 1 ? 'bold' : 'normal',
-                                        }}>{msg}</div>
-                                    ))}
-                                </div>
+                                {showStatus ? (
+                                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                                        <div style={{
+                                            width: '200px', height: '80px', overflowY: 'auto',
+                                            background: '#f8f9fa', border: '1px solid #ddd', borderRadius: '6px',
+                                            padding: '4px 8px', fontSize: '11px', lineHeight: 1.4,
+                                            color: '#555',
+                                        }}
+                                            ref={el => {
+                                                if (el) el.scrollTop = el.scrollHeight;
+                                            }}
+                                        >
+                                            {statusLog.map((msg, i) => (
+                                                <div key={i} style={{
+                                                    color: i === statusLog.length - 1 ? '#2c3e50' : '#999',
+                                                    fontWeight: i === statusLog.length - 1 ? 'bold' : 'normal',
+                                                }}>{msg}</div>
+                                            ))}
+                                        </div>
+                                        <span
+                                            onClick={() => setShowStatus(false)}
+                                            title="Hide status window"
+                                            style={{
+                                                position: 'absolute', top: '-2px', right: '2px',
+                                                fontSize: '10px', color: '#bbb', cursor: 'pointer',
+                                                lineHeight: 1,
+                                            }}
+                                        >x</span>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setShowStatus(true)}
+                                        title="Show status window"
+                                        style={{
+                                            padding: '2px 6px', border: '1px solid #ddd', borderRadius: '4px',
+                                            background: '#f8f9fa', color: '#999', cursor: 'pointer',
+                                            fontSize: '10px', flexShrink: 0,
+                                        }}
+                                    >Status</button>
+                                )}
                                 <TableRing
                                     numPlayers={ctx.numPlayers}
                                     currentPlayer={ctx.currentPlayer}

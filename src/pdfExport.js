@@ -1,14 +1,30 @@
 /**
  * PDF Export — generates a printable scoreboard + bullets PDF.
  *
+ * Mirrors the on-screen Scoreboard component as closely as possible.
  * Designed for hole-punching (wide left margin) and notebook storage.
  */
 import { jsPDF } from 'jspdf';
 
 const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-const LEFT_MARGIN = 25; // Wide left margin for hole-punching
+const ORDINAL_LABELS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+const LEFT_MARGIN = 25;
 const RIGHT_MARGIN = 12;
 const TOP_MARGIN = 15;
+
+// Colors matching the UI
+const GREEN = [39, 174, 96];       // #27ae60 — round winner superscript
+const RED = [231, 76, 60];         // #e74c3c — non-winner superscript
+const GOLD_TEXT = [212, 160, 23];   // #d4a017 — winner name/score
+const GOLD_BG = [255, 248, 225];    // #fff8e1 — winner column background
+const GOLD_BADGE = [241, 196, 15];  // #f1c40f — 1st place badge
+const SILVER_BADGE = [189, 195, 199]; // #bdc3c7
+const BRONZE_BADGE = [205, 127, 50]; // #cd7f32
+const GRAY_BADGE = [224, 224, 224];  // #e0e0e0
+const HEADER_BG = [248, 249, 250];   // #f8f9fa
+const TOTAL_BG = [238, 238, 238];    // #eee
+const BORDER = [221, 221, 221];      // #ddd
+const MUTED = [153, 153, 153];       // #999
 
 export function exportScoreboardPDF({ G, numPlayers, playerNames, bulletMessages }) {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
@@ -16,173 +32,283 @@ export function exportScoreboardPDF({ G, numPlayers, playerNames, bulletMessages
     const usableWidth = pageWidth - LEFT_MARGIN - RIGHT_MARGIN;
     let y = TOP_MARGIN;
 
-    // --- Header ---
+    // --- Header: Michigan Rummy + LWD stacked names ---
     const now = new Date();
-    const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const dateStr = now.toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    });
 
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0);
     doc.text('MICHIGAN RUMMY', LEFT_MARGIN, y);
     const titleWidth = doc.getTextWidth('MICHIGAN RUMMY');
     const nameX = LEFT_MARGIN + titleWidth + 3;
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
-    doc.text('Lott', nameX, y - 4);
-    doc.text('Wittbrodt', nameX, y - 1.5);
-    doc.text('Dlogolpolski', nameX, y + 1);
+    doc.setTextColor(...MUTED);
+    doc.text('ott', nameX + doc.getTextWidth('L'), y - 4);
+    doc.text('ittbrodt', nameX + doc.getTextWidth('W'), y - 1.5);
+    doc.text('logolpolski', nameX + doc.getTextWidth('D'), y + 1);
     doc.setFont('helvetica', 'bold');
     doc.text('L', nameX, y - 4);
     doc.text('W', nameX, y - 1.5);
     doc.text('D', nameX, y + 1);
+
     y += 4;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0);
     doc.text(dateStr, LEFT_MARGIN, y);
-    y += 8;
+    y += 6;
 
-    // --- Scoreboard Table ---
-    const names = Array.from({ length: numPlayers }, (_, i) => playerNames?.[i] || playerNames?.[String(i)] || `Player ${i}`);
-    const colWidth = Math.min(22, (usableWidth - 14) / numPlayers);
-    const rdColWidth = 14;
-    const rowHeight = 6;
-    const headerHeight = 7;
+    // --- Scoreboard subtitle ---
+    const numDecks = Math.ceil(numPlayers / 5);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0);
+    doc.text('Scoreboard', LEFT_MARGIN, y);
+    const sbWidth = doc.getTextWidth('Scoreboard');
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...MUTED);
+    doc.text(`${numDecks} ${numDecks === 1 ? 'deck' : 'decks'} (${numDecks * 52} cards)`, LEFT_MARGIN + sbWidth + 3, y);
+    y += 5;
 
-    // Helper: draw cell background and border
-    const drawCellBg = (x, w, h, fill) => {
-        if (fill) {
-            doc.setFillColor(...fill);
-            doc.rect(x, y, w, h, 'F');
+    // --- Table setup ---
+    const names = Array.from({ length: numPlayers }, (_, i) =>
+        playerNames?.[i] || playerNames?.[String(i)] || `Player ${i}`);
+    const rdColWidth = 16;
+    const colWidth = Math.min(28, (usableWidth - rdColWidth) / numPlayers);
+    const rowHeight = 7;
+    const headerHeight = 10;
+
+    const scoreHistory = G.scoreHistory || [];
+    const isGameOver = scoreHistory.length >= 13;
+
+    // Rankings
+    let rankings = null;
+    if (isGameOver) {
+        const scores = Array.from({ length: numPlayers }, (_, i) => ({
+            id: i, score: G.players[String(i)]?.score ?? G.players[i]?.score ?? 0,
+        }));
+        scores.sort((a, b) => a.score - b.score);
+        rankings = {};
+        let rank = 0;
+        for (let j = 0; j < scores.length; j++) {
+            if (j > 0 && scores[j].score !== scores[j - 1].score) rank = j;
+            rankings[scores[j].id] = rank;
         }
-        doc.setDrawColor(180);
+    }
+
+    // Helper: draw cell border
+    const cellBorder = (x, w, h) => {
+        doc.setDrawColor(...BORDER);
         doc.rect(x, y, w, h, 'S');
     };
 
-    // Helper: draw simple text cell
-    const drawCell = (x, w, h, text, opts = {}) => {
-        const { bold, fill, align, fontSize } = {
-            bold: false, fill: null, align: 'center', fontSize: 8, ...opts
-        };
-        drawCellBg(x, w, h, fill);
-        doc.setFont('helvetica', bold ? 'bold' : 'normal');
-        doc.setFontSize(fontSize);
-        doc.setTextColor(0);
-        const textX = align === 'center' ? x + w / 2 : align === 'right' ? x + w - 1.5 : x + 1.5;
-        doc.text(String(text), textX, y + h / 2 + 1.2, { align });
+    // Helper: fill + border
+    const fillCell = (x, w, h, color) => {
+        doc.setFillColor(...color);
+        doc.rect(x, y, w, h, 'F');
+        cellBorder(x, w, h);
     };
 
-    // Helper: draw score cell with running total + colored superscript delta
-    const drawScoreCell = (x, w, h, total, delta, isWinner) => {
-        const fill = isWinner ? [234, 250, 241] : null; // light green for winner
-        drawCellBg(x, w, h, fill);
+    // --- Header row ---
+    fillCell(LEFT_MARGIN, rdColWidth, headerHeight, HEADER_BG);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(0);
+    doc.text('Rd', LEFT_MARGIN + rdColWidth / 2, y + headerHeight / 2 + 1.5, { align: 'center' });
 
-        const centerX = x + w / 2;
-        const baseY = y + h / 2 + 1.2;
-
-        // Main score (running total)
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(0);
-        const totalStr = String(total);
-        const totalWidth = doc.getTextWidth(totalStr);
-
-        if (isWinner) {
-            // Winner: show total in green, no delta (delta is 0)
-            doc.setTextColor(39, 174, 96); // green
-            doc.text(totalStr, centerX, baseY, { align: 'center' });
-        } else {
-            // Non-winner: total + superscript delta
-            const deltaStr = `+${delta}`;
-            doc.setFontSize(5.5);
-            const deltaWidth = doc.getTextWidth(deltaStr);
-            const fullWidth = totalWidth + 1 + deltaWidth;
-            const startX = centerX - fullWidth / 2;
-
-            // Draw total
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(0);
-            doc.text(totalStr, startX, baseY);
-
-            // Draw delta as superscript in red
-            doc.setFontSize(5.5);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(200, 50, 50); // red
-            doc.text(deltaStr, startX + totalWidth + 0.8, baseY - 1.8);
-        }
-    };
-
-    // Header row
-    drawCell(LEFT_MARGIN, rdColWidth, headerHeight, 'Rd', { bold: true, fill: [240, 240, 240] });
     for (let i = 0; i < numPlayers; i++) {
         const x = LEFT_MARGIN + rdColWidth + i * colWidth;
-        drawCell(x, colWidth, headerHeight, names[i], { bold: true, fill: [240, 240, 240], fontSize: 7 });
+        const isWinner = isGameOver && rankings?.[i] === 0;
+        fillCell(x, colWidth, headerHeight, isWinner ? GOLD_BG : HEADER_BG);
+
+        // Top accent bar for winner
+        if (isWinner) {
+            doc.setFillColor(...GOLD_BADGE);
+            doc.rect(x + 0.3, y + 0.3, colWidth - 0.6, 1, 'F');
+        }
+
+        // Player name
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(...(isWinner ? GOLD_TEXT : [0, 0, 0]));
+        const displayName = (isWinner ? '\u{1F3C6} ' : '') + names[i];
+        doc.text(displayName, x + colWidth / 2, y + 4, { align: 'center' });
+
+        // Cards subtitle
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(...MUTED);
+        const cards = G.players[String(i)]?.hand?.length ?? G.players[i]?.hand?.length ?? 0;
+        doc.text(`${cards} cards`, x + colWidth / 2, y + 7.5, { align: 'center' });
     }
     y += headerHeight;
 
-    // Score rows
-    const scoreHistory = G.scoreHistory || [];
+    // --- Score rows ---
     for (let r = 0; r < 13; r++) {
         const roundData = scoreHistory.find(h => h.round === r);
+        const isCurrentRound = G.round === r;
         const isPlayed = !!roundData;
-
-        // Round label with dealer indicator
         const dealerId = r % numPlayers;
-        const rdLabel = `${RANKS[r]} (${names[dealerId]?.[0] || dealerId})`;
-        drawCell(LEFT_MARGIN, rdColWidth, rowHeight, rdLabel, { fontSize: 7 });
 
-        for (let i = 0; i < numPlayers; i++) {
-            const x = LEFT_MARGIN + rdColWidth + i * colWidth;
+        // Round cell
+        if (isCurrentRound && !isGameOver) {
+            doc.setFillColor(255, 249, 196); // #fff9c4
+            doc.rect(LEFT_MARGIN, y, rdColWidth, rowHeight, 'F');
+        }
+        cellBorder(LEFT_MARGIN, rdColWidth, rowHeight);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(0);
+        doc.text(RANKS[r], LEFT_MARGIN + 3, y + rowHeight / 2 + 1.3);
+        // Dealer initial
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...MUTED);
+        const dealerInit = names[dealerId]?.[0] || String(dealerId);
+        const rankWidth = doc.getTextWidth(RANKS[r]);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        const rankW = doc.getTextWidth(RANKS[r]);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.text(` (${dealerInit})`, LEFT_MARGIN + 3 + rankW, y + rowHeight / 2 + 1.3);
+
+        // Score cells
+        for (let pId = 0; pId < numPlayers; pId++) {
+            const x = LEFT_MARGIN + rdColWidth + pId * colWidth;
+
+            // Background
+            if (isCurrentRound && !isGameOver) {
+                doc.setFillColor(255, 249, 196);
+                doc.rect(x, y, colWidth, rowHeight, 'F');
+            }
+            cellBorder(x, colWidth, rowHeight);
+
             if (isPlayed) {
-                let total = 0;
-                for (const h of scoreHistory) {
-                    if (h.round <= r) total += (h.scores[String(i)] || 0);
+                let runningTotal = 0;
+                for (let i = 0; i <= r; i++) {
+                    const h = scoreHistory.find(hist => hist.round === i);
+                    if (h) runningTotal += (h.scores[String(pId)] || 0);
                 }
-                const delta = roundData.scores[String(i)] || 0;
-                const isWinner = roundData.winner === String(i);
-                drawScoreCell(x, colWidth, rowHeight, total, delta, isWinner);
-            } else {
-                drawCell(x, colWidth, rowHeight, r === G.round ? '...' : '', { fontSize: 7 });
+                const roundScore = roundData.scores[String(pId)] || 0;
+                const isRoundWinner = roundData.winner === String(pId);
+
+                const cx = x + colWidth / 2;
+                const baseY = y + rowHeight / 2 + 1.5;
+
+                // Running total
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(11);
+                doc.setTextColor(0);
+                const totalStr = String(runningTotal);
+                const totalW = doc.getTextWidth(totalStr);
+
+                // Superscript
+                doc.setFontSize(7);
+                doc.setFont('helvetica', 'bold');
+                const supStr = isRoundWinner ? '0' : `+${roundScore}`;
+                const supW = doc.getTextWidth(supStr);
+
+                // Center the combined total+sup
+                const gap = 0.5;
+                const fullW = totalW + gap + supW;
+
+                // Adjust font back for total
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'normal');
+
+                // Use larger font width measurement
+                const totalW2 = doc.getTextWidth(totalStr);
+                doc.setFontSize(7);
+                const supW2 = doc.getTextWidth(supStr);
+                const fullW2 = totalW2 + gap + supW2;
+                const startX = cx - fullW2 / 2;
+
+                // Draw total
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(0);
+                doc.text(totalStr, startX, baseY);
+
+                // Draw superscript
+                doc.setFontSize(7);
+                doc.setFont('helvetica', 'bold');
+                if (isRoundWinner) {
+                    doc.setTextColor(...GREEN);
+                } else {
+                    doc.setTextColor(...RED);
+                }
+                doc.text(supStr, startX + totalW2 + gap, baseY - 2.2);
+            } else if (isCurrentRound && !isGameOver) {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(10);
+                doc.setTextColor(...MUTED);
+                doc.text('...', x + colWidth / 2, y + rowHeight / 2 + 1.3, { align: 'center' });
             }
         }
         y += rowHeight;
     }
 
-    // Total row
-    drawCell(LEFT_MARGIN, rdColWidth, headerHeight, 'Total', { bold: true, fill: [230, 230, 230] });
+    // --- Total row ---
+    fillCell(LEFT_MARGIN, rdColWidth, headerHeight, TOTAL_BG);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(0);
+    doc.text('Total', LEFT_MARGIN + rdColWidth / 2, y + headerHeight / 2 + 1.5, { align: 'center' });
+
     for (let i = 0; i < numPlayers; i++) {
         const x = LEFT_MARGIN + rdColWidth + i * colWidth;
         const score = G.players[String(i)]?.score ?? G.players[i]?.score ?? 0;
-        drawCell(x, colWidth, headerHeight, String(score), { bold: true, fill: [230, 230, 230] });
+        const isWinner = isGameOver && rankings?.[i] === 0;
+        const rank = rankings?.[i];
+
+        fillCell(x, colWidth, headerHeight, isWinner ? GOLD_BG : TOTAL_BG);
+
+        // Score
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(13);
+        doc.setTextColor(...(isWinner ? GOLD_TEXT : [0, 0, 0]));
+        const scoreStr = String(score);
+
+        if (isGameOver && rank != null) {
+            // Score + badge
+            const scoreW = doc.getTextWidth(scoreStr);
+            doc.setFontSize(7);
+            const label = ORDINAL_LABELS[rank] || `${rank + 1}th`;
+            const labelW = doc.getTextWidth(label);
+            const badgeW = labelW + 3;
+            const badgeH = 4;
+            const totalW = scoreW + 2 + badgeW;
+            const startX = x + colWidth / 2 - totalW / 2;
+
+            // Draw score
+            doc.setFontSize(13);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(...(isWinner ? GOLD_TEXT : [0, 0, 0]));
+            doc.text(scoreStr, startX, y + headerHeight / 2 + 2);
+
+            // Draw badge pill
+            const badgeX = startX + scoreW + 2;
+            const badgeY = y + headerHeight / 2 - 1;
+            const badgeColor = rank === 0 ? GOLD_BADGE : rank === 1 ? SILVER_BADGE : rank === 2 ? BRONZE_BADGE : GRAY_BADGE;
+            doc.setFillColor(...badgeColor);
+            doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 2, 2, 'F');
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(rank <= 2 ? 255 : 100);
+            doc.text(label, badgeX + badgeW / 2, badgeY + badgeH / 2 + 1, { align: 'center' });
+        } else {
+            doc.text(scoreStr, x + colWidth / 2, y + headerHeight / 2 + 2, { align: 'center' });
+        }
     }
     y += headerHeight;
 
-    // Rankings row
-    if (scoreHistory.length >= 13) {
-        const scores = Array.from({ length: numPlayers }, (_, i) => ({
-            id: i, score: G.players[String(i)]?.score ?? G.players[i]?.score ?? 0
-        }));
-        scores.sort((a, b) => a.score - b.score);
-        const rankMap = {};
-        let rank = 0;
-        for (let j = 0; j < scores.length; j++) {
-            if (j > 0 && scores[j].score !== scores[j - 1].score) rank = j;
-            rankMap[scores[j].id] = rank;
-        }
-        const medals = ['1st', '2nd', '3rd'];
-
-        drawCell(LEFT_MARGIN, rdColWidth, rowHeight, 'Rank', { bold: true, fontSize: 7 });
-        for (let i = 0; i < numPlayers; i++) {
-            const x = LEFT_MARGIN + rdColWidth + i * colWidth;
-            const r = rankMap[i];
-            drawCell(x, colWidth, rowHeight, medals[r] || `${r + 1}th`, {
-                bold: r === 0, fontSize: 7,
-                fill: r === 0 ? [255, 235, 59] : null,
-            });
-        }
-        y += rowHeight;
-    }
-
-    y += 6;
+    y += 8;
 
     // --- Bullet List ---
     const bullets = bulletMessages || [];

@@ -884,6 +884,30 @@ export const Board = (props) => {
         setSelectedIndices([]);
     };
 
+    // Round-end popup
+    const [roundEndMsg, setRoundEndMsg] = React.useState(null);
+    const prevScoreHistoryLen = React.useRef(G.scoreHistory?.length || 0);
+    React.useEffect(() => {
+        const len = G.scoreHistory?.length || 0;
+        if (len > prevScoreHistoryLen.current) {
+            const lastRound = G.scoreHistory[len - 1];
+            const winnerId = lastRound.winner;
+            const roundNum = lastRound.round + 1;
+            let msg;
+            if (winnerId === 'None (Vote)') {
+                msg = `Round ${roundNum} ended by vote`;
+            } else {
+                const name = G.playerNames?.[winnerId] || `Player ${winnerId}`;
+                msg = `${name} has taken Round ${roundNum}!`;
+            }
+            setRoundEndMsg(msg);
+            const timer = setTimeout(() => setRoundEndMsg(null), 3000);
+            prevScoreHistoryLen.current = len;
+            return () => clearTimeout(timer);
+        }
+        prevScoreHistoryLen.current = len;
+    }, [G.scoreHistory?.length]);
+
     // Game-over state
     const gameOver = ctx.gameover;
     const winners = React.useMemo(() => {
@@ -896,6 +920,27 @@ export const Board = (props) => {
 
     return (
         <ErrorBoundary>
+            {/* Round-end popup */}
+            {roundEndMsg && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 9000, pointerEvents: 'none',
+                }}>
+                    <div style={{
+                        background: 'linear-gradient(135deg, #2c3e50, #34495e)',
+                        color: 'white', padding: '24px 48px', borderRadius: '16px',
+                        fontSize: '24px', fontWeight: 'bold', letterSpacing: '1px',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                        border: '3px solid #f1c40f',
+                        textAlign: 'center',
+                        animation: 'round-end-fade 3s ease-in-out forwards',
+                    }}>
+                        {roundEndMsg}
+                    </div>
+                </div>
+            )}
+
             {/* Game Over Banner */}
             {gameOver && (
                 <div style={{

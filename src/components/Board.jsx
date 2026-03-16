@@ -972,18 +972,39 @@ export const Board = (props) => {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     {(() => {
                                         const topCard = G.discardPile?.length > 0 ? G.discardPile[G.discardPile.length - 1] : null;
+                                        const mustMeldFirst = G.mustMeldAfterDiscard && !G.playedCardThisTurn;
+                                        const canDiscardHere = safeSelection.length === 1 && (G.hasDrawn || G.isFirstTurn) && isMyTurn && !mustMeldFirst;
+                                        const handleDiscardPileClick = () => {
+                                            if (canDiscardHere) {
+                                                moves.discardCard(toActual(safeSelection[0]));
+                                                setSelectedIndices([]);
+                                            } else if (!G.hasDrawn && topCard) {
+                                                moves.drawCard(false);
+                                            }
+                                        };
                                         return (
                                             <div
-                                                onClick={() => { if (!G.hasDrawn && topCard) moves.drawCard(false); }}
-                                                title={topCard ? `Discard Pile (o) — ${topCard.rank}${SUIT_ICONS[topCard.suit]} (${G.discardPile.length} cards)` : 'Discard Pile — Empty'}
+                                                onClick={handleDiscardPileClick}
+                                                onDragOver={(e) => { if (canDiscardHere) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+                                                onDrop={(e) => {
+                                                    e.preventDefault();
+                                                    if (canDiscardHere) {
+                                                        moves.discardCard(toActual(safeSelection[0]));
+                                                        setSelectedIndices([]);
+                                                        setDragIndex(null);
+                                                        setDropTarget(null);
+                                                    }
+                                                }}
+                                                title={canDiscardHere ? 'Click or drop to discard selected card' : topCard ? `Discard Pile (o) — ${topCard.rank}${SUIT_ICONS[topCard.suit]} (${G.discardPile.length} cards)` : 'Discard Pile — Empty'}
                                                 style={{
                                                     width: '48px', height: '68px', borderRadius: '5px',
-                                                    border: topCard ? '1px solid #ccc' : '1px dashed #bbb',
-                                                    background: topCard ? 'white' : '#f5f5f5',
-                                                    cursor: !G.hasDrawn && topCard ? 'pointer' : 'default',
+                                                    border: canDiscardHere ? '2px solid #e74c3c' : topCard ? '1px solid #ccc' : '1px dashed #bbb',
+                                                    background: canDiscardHere ? '#fdecea' : topCard ? 'white' : '#f5f5f5',
+                                                    cursor: canDiscardHere || (!G.hasDrawn && topCard) ? 'pointer' : 'default',
                                                     display: 'flex', flexDirection: 'column',
                                                     alignItems: 'center', justifyContent: 'center',
-                                                    boxShadow: topCard ? '1px 1px 3px rgba(0,0,0,0.15)' : 'none',
+                                                    boxShadow: canDiscardHere ? '0 0 6px rgba(231,76,60,0.4)' : topCard ? '1px 1px 3px rgba(0,0,0,0.15)' : 'none',
+                                                    transition: 'all 0.15s ease',
                                                 }}
                                             >
                                                 {topCard ? (<>

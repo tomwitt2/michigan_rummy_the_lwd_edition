@@ -3,7 +3,7 @@ import { isWild, analyzeRun, RANKS } from '../game/logic';
 export const SUIT_ICONS = { H: '♥', D: '♦', C: '♣', S: '♠' };
 export const SUIT_COLORS = { H: '#e74c3c', D: '#e74c3c', C: '#2c3e50', S: '#2c3e50' };
 
-export const Card = ({ card, selected, onClick, wild, selectionIndex, draggable, onDragStart, onDragEnd }) => (
+export const Card = ({ card, selected, onClick, wild, selectionIndex, highlighted, draggable, onDragStart, onDragEnd }) => (
     <div
         draggable={draggable}
         onDragStart={onDragStart}
@@ -12,16 +12,16 @@ export const Card = ({ card, selected, onClick, wild, selectionIndex, draggable,
         style={{
             width: '65px',
             height: '95px',
-            border: selected ? '3px solid #3498db' : '1px solid #ccc',
+            border: selected ? '3px solid #3498db' : highlighted ? '3px solid #f1c40f' : '1px solid #ccc',
             borderRadius: '6px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: wild ? '#fff9c4' : 'white',
+            backgroundColor: highlighted && !wild ? '#fffde7' : wild ? '#fff9c4' : 'white',
             cursor: draggable ? 'grab' : 'pointer',
             userSelect: 'none',
-            boxShadow: selected ? '0 0 8px #3498db' : 'none',
+            boxShadow: selected ? '0 0 8px #3498db' : highlighted ? '0 0 8px rgba(241,196,15,0.6)' : 'none',
             position: 'relative',
             transition: 'all 0.1s ease',
             transform: selected ? 'translateY(-5px)' : 'none'

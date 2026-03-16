@@ -393,6 +393,8 @@ export const Board = (props) => {
     const prevHandRef = React.useRef(null);
     const autoSortRef = React.useRef(false);
     const wildSortModeRef = React.useRef('in-place');
+    const [newCardIdx, setNewCardIdx] = React.useState(null);
+    const newCardTimerRef = React.useRef(null);
     React.useEffect(() => {
         const hand = G.players?.[playerID]?.hand;
         if (!hand) return;
@@ -418,8 +420,18 @@ export const Board = (props) => {
                     }
                 }
                 // Append any new cards (e.g. drawn card) at end
+                const newIndices = [];
                 for (const a of available) {
-                    if (!a.used) newOrder.push(a.idx);
+                    if (!a.used) {
+                        newOrder.push(a.idx);
+                        newIndices.push(a.idx);
+                    }
+                }
+                // Highlight newly drawn card
+                if (newIndices.length > 0) {
+                    if (newCardTimerRef.current) clearTimeout(newCardTimerRef.current);
+                    setNewCardIdx(newIndices[0]);
+                    newCardTimerRef.current = setTimeout(() => setNewCardIdx(null), 2000);
                 }
                 order = newOrder.length === hand.length ? newOrder : hand.map((_, i) => i);
             }
@@ -1161,6 +1173,7 @@ export const Board = (props) => {
                                             wild={isWild(card, G.round)}
                                             selected={safeSelection.includes(i)}
                                             selectionIndex={safeSelection.indexOf(i)}
+                                            highlighted={actualIdx === newCardIdx}
                                             onClick={() => { if (dragIndex === null && !gameOver) toggleSelect(i); }}
                                             draggable={true}
                                             onDragStart={(e) => {

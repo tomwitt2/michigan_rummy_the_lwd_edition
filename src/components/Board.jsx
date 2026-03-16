@@ -529,13 +529,14 @@ export const Board = (props) => {
         }
 
         // Round ended
-        if (prev.scoreHistoryLen != null && (G.scoreHistory?.length || 0) > prev.scoreHistoryLen) {
-            const lastRound = G.scoreHistory[G.scoreHistory.length - 1];
+        const curScoreLen = G.scoreHistory?.length || 0;
+        if (curScoreLen > (prev.scoreHistoryLen || 0)) {
+            const lastRound = G.scoreHistory[curScoreLen - 1];
             if (lastRound.winner === 'None (Vote)') {
-                msgs.push(`Round ${lastRound.round + 1} ended by vote.`);
+                msgs.push(`--- Round ${lastRound.round + 1} ended by vote ---`);
             } else {
                 const winnerName = G.playerNames?.[lastRound.winner] || `Player ${lastRound.winner}`;
-                msgs.push(`${winnerName} went out! Round ${lastRound.round + 1} over.`);
+                msgs.push(`--- ${winnerName} won Round ${lastRound.round + 1}! ---`);
             }
         }
 

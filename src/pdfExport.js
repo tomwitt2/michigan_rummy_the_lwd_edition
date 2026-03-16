@@ -136,7 +136,7 @@ export function exportScoreboardPDF({ G, numPlayers, playerNames, bulletMessages
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(...(isWinner ? GOLD_TEXT : [0, 0, 0]));
-        const displayName = (isWinner ? '\u{1F3C6} ' : '') + names[i];
+        const displayName = names[i];
         doc.text(displayName, x + colWidth / 2, y + 4, { align: 'center' });
 
         // Cards subtitle

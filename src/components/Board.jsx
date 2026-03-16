@@ -362,6 +362,20 @@ const ChatPanel = ({ messages, onSend, numPlayers, getPlayerName, currentPlayer,
 
 export const Board = (props) => {
     const { G, ctx, playerID, moves, log } = props;
+    const [showAdmin, setShowAdmin] = React.useState(false);
+
+    // Hide/show boardgame.io debug panel based on admin toggle
+    React.useEffect(() => {
+        const panel = document.querySelector('.debug-panel');
+        if (panel) panel.style.display = showAdmin ? '' : 'none';
+        const root = document.getElementById('root');
+        if (root) root.style.marginRight = showAdmin ? '' : '0';
+        return () => {
+            if (panel) panel.style.display = '';
+            if (root) root.style.marginRight = '';
+        };
+    }, [showAdmin]);
+
     const [selectedIndices, _setSelectedIndices] = React.useState([]);
     const selectedRef = React.useRef([]);
     const setSelectedIndices = (val) => {
@@ -523,6 +537,12 @@ export const Board = (props) => {
             // Stop single-letter keys from propagating to the boardgame.io debug panel
             if (key.length === 1) {
                 e.stopPropagation();
+            }
+
+            // Toggle admin controls ('*')
+            if (e.key === '*') {
+                setShowAdmin(prev => !prev);
+                return;
             }
 
             // DRAW PILE ('n' — new card)
@@ -796,7 +816,7 @@ export const Board = (props) => {
                                 <span>Tie: {winners.map(id => getPlayerName(id)).join(' & ')}!</span>
                             )}
                         </span>
-                        {log && props.gameSeed && (
+                        {log && props.gameSeed && showAdmin && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <button
                                     onClick={() => {
@@ -1141,8 +1161,8 @@ export const Board = (props) => {
                             </div>
                         </div>
 
-                        {/* Draw alert — shown when player must draw to continue */}
-                        {isMyTurn && !G.hasDrawn && !G.isFirstTurn && (
+                        {/* Draw alert — shown when player must draw to continue (admin only) */}
+                        {showAdmin && isMyTurn && !G.hasDrawn && !G.isFirstTurn && (
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -1323,7 +1343,7 @@ export const Board = (props) => {
 
                         <div style={{ fontSize: '10px', color: '#aaa', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span>n=draw pile · o=discard pile · d=discard · m=meld · l=lay off · w=wild swap · u=undo · s=sort · c=cycle wild sort · t=chat</span>
-                            {log && props.gameSeed && (
+                            {log && props.gameSeed && showAdmin && (
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     {chatMessages.length > 0 && (
                                         <label style={{ fontSize: '10px', color: '#999', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }}>

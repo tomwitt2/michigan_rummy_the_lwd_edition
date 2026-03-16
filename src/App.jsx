@@ -44,7 +44,7 @@ const App = () => {
             const seed = gameConfig.seed || Date.now().toString(36).slice(-10);
             seedRef.current = seed;
             const game = createGame({ rules: gameConfig.rules, playerNames: gameConfig.playerNames, seed });
-            clientRef.current = ReactClient({ game, board: Board, numPlayers: gameConfig.numPlayers, debug: true });
+            clientRef.current = ReactClient({ game, board: Board, numPlayers: gameConfig.numPlayers, debug: false });
         }
         const GameClient = clientRef.current;
         return (

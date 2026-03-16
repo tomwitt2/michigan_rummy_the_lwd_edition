@@ -37,7 +37,6 @@ export const MultiplayerGameBoard = ({ matchID, playerID, credentials, botCreden
             game: LWDRummyMultiplayer,
             board: BoardWithNameSync,
             multiplayer: SocketIO({ server: SERVER_URL || window.location.origin }),
-            debug: false,
         })
     );
 

@@ -1,0 +1,8 @@
+node_modules
+dist
+.notes
+.claude
+.git
+saved_games
+*.md
+LICENSE

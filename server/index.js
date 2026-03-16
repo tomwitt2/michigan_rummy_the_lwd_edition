@@ -16,7 +16,7 @@ const isProd = process.env.NODE_ENV === 'production';
 const server = Server({
     games: [LWDRummyMultiplayer],
     origins: isProd
-        ? [Origins.LOCALHOST]
+        ? [/.*/, Origins.LOCALHOST]
         : [Origins.LOCALHOST_IN_DEVELOPMENT],
 });
 

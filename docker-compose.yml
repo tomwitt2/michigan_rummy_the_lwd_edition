@@ -1,0 +1,9 @@
+services:
+  lwd-rummy:
+    build: .
+    ports:
+      - "8001:8001"
+    environment:
+      - NODE_ENV=production
+      - PORT=8001
+    restart: unless-stopped

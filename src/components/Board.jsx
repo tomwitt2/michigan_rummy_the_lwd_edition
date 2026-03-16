@@ -1117,7 +1117,7 @@ export const Board = (props) => {
                                     return (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <div
-                                        onClick={() => { if (!G.hasDrawn) moves.drawCard(true); }}
+                                        onClick={() => { if (!G.hasDrawn && !G.isFirstTurn) moves.drawCard(true); }}
                                         title={`Draw Pile (n) — ${G.deck.length} cards`}
                                         style={{
                                             width: '48px', height: '68px', borderRadius: '5px',

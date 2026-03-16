@@ -206,7 +206,7 @@ export const LWDRummyBase = {
 
     moves: {
         drawCard: ({ G, ctx, random }, fromDeck = true) => {
-            if (G.hasDrawn) return;
+            if (G.hasDrawn || G.isFirstTurn) return;
 
             if (fromDeck) {
                 if (G.deck.length === 0) {

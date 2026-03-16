@@ -436,8 +436,9 @@ export const Board = (props) => {
                 order = newOrder.length === hand.length ? newOrder : hand.map((_, i) => i);
             }
 
-            // Apply auto-sort if enabled
+            // Apply auto-sort if enabled (respecting pinned cards)
             if (autoSortRef.current) {
+                const pinned = pinnedCardsRef.current;
                 const wsm = wildSortModeRef.current;
                 const sortRank = (card) => {
                     if (isWild(card, G.round)) {
@@ -447,18 +448,33 @@ export const Board = (props) => {
                     return RANKS.indexOf(card.rank);
                 };
                 const SUIT_ORDER = { H: 0, D: 1, C: 2, S: 3 };
-                order.sort((a, b) => {
+
+                // Separate pinned and unpinned
+                const unpinnedSlots = [];
+                for (let di = 0; di < order.length; di++) {
+                    if (!pinned.has(order[di])) unpinnedSlots.push(di);
+                }
+                const unpinned = unpinnedSlots.map(di => order[di]);
+                unpinned.sort((a, b) => {
                     const ca = hand[a], cb = hand[b];
                     const ra = sortRank(ca), rb = sortRank(cb);
                     if (ra !== rb) return ra - rb;
                     return SUIT_ORDER[ca.suit] - SUIT_ORDER[cb.suit];
                 });
+                for (let k = 0; k < unpinnedSlots.length; k++) {
+                    order[unpinnedSlots[k]] = unpinned[k];
+                }
             }
 
             return order;
         });
     });
     const toActual = (displayIdx) => localOrder[displayIdx] ?? displayIdx;
+
+    // Pinned cards: Set of actual hand indices that should not be moved during sorting
+    const [pinnedCards, setPinnedCards] = React.useState(new Set());
+    const pinnedCardsRef = React.useRef(pinnedCards);
+    pinnedCardsRef.current = pinnedCards;
 
     const [scoreDrawerOpen, setScoreDrawerOpen] = React.useState(true);
     const [scoreboardWidth, setScoreboardWidth] = React.useState(600);
@@ -721,13 +737,21 @@ export const Board = (props) => {
     const player = G.players[playerID];
     const isMyTurn = ctx.currentPlayer === playerID;
 
-    // Auto-clear selection when hand shrinks (card was played/discarded)
+    // Auto-clear selection and prune stale pins when hand shrinks
     const prevHandLen = React.useRef(player.hand.length);
     React.useEffect(() => {
         if (player.hand.length < prevHandLen.current) {
             selectedRef.current = [];
             _setSelectedIndices([]);
             setLayoffPick(null);
+            // Remove pins for indices that no longer exist
+            setPinnedCards(prev => {
+                const valid = new Set();
+                for (const idx of prev) {
+                    if (idx < player.hand.length) valid.add(idx);
+                }
+                return valid.size === prev.size ? prev : valid;
+            });
         }
         prevHandLen.current = player.hand.length;
     }, [player.hand.length]);
@@ -772,6 +796,15 @@ export const Board = (props) => {
     }, [G.rules?.hintSwapWild, G.board, player.hand, player.isOnBoard, G.round, G.rules]);
 
     const toggleSelect = (i) => {
+        // Unpin the card when selected
+        const actualIdx = toActual(i);
+        if (pinnedCards.has(actualIdx)) {
+            setPinnedCards(prev => {
+                const next = new Set(prev);
+                next.delete(actualIdx);
+                return next;
+            });
+        }
         setSelectedIndices(prev => {
             if (prev.includes(i)) {
                 return prev.filter(idx => idx !== i);
@@ -787,6 +820,20 @@ export const Board = (props) => {
         const hand = player.hand;
         const sorted = [...localOrder];
 
+        // Separate pinned and unpinned positions
+        const pinnedPositions = new Map(); // displayIdx -> actualIdx
+        const unpinnedDisplayIdxs = [];
+        for (let di = 0; di < sorted.length; di++) {
+            if (pinnedCards.has(sorted[di])) {
+                pinnedPositions.set(di, sorted[di]);
+            } else {
+                unpinnedDisplayIdxs.push(di);
+            }
+        }
+
+        // Sort only unpinned cards
+        const unpinnedActuals = unpinnedDisplayIdxs.map(di => sorted[di]);
+
         const sortRank = (card) => {
             if (isWild(card, G.round)) {
                 if (wildSortMode === 'left') return -1;
@@ -794,7 +841,7 @@ export const Board = (props) => {
             }
             return RANKS.indexOf(card.rank);
         };
-        sorted.sort((a, b) => {
+        unpinnedActuals.sort((a, b) => {
             const ca = hand[a], cb = hand[b];
             const ra = sortRank(ca), rb = sortRank(cb);
             if (ra !== rb) return ra - rb;
@@ -803,14 +850,14 @@ export const Board = (props) => {
 
         // Second pass: reorder same-rank groups to maximize suit adjacency
         let i = 0;
-        while (i < sorted.length) {
+        while (i < unpinnedActuals.length) {
             let j = i;
-            const rank = RANKS.indexOf(hand[sorted[i]].rank);
-            while (j < sorted.length && RANKS.indexOf(hand[sorted[j]].rank) === rank) j++;
+            const rank = RANKS.indexOf(hand[unpinnedActuals[i]].rank);
+            while (j < unpinnedActuals.length && RANKS.indexOf(hand[unpinnedActuals[j]].rank) === rank) j++;
             if (j - i > 1) {
-                const nextSuit = j < sorted.length ? hand[sorted[j]].suit : null;
-                const prevSuit = i > 0 ? hand[sorted[i - 1]].suit : null;
-                const group = sorted.slice(i, j);
+                const nextSuit = j < unpinnedActuals.length ? hand[unpinnedActuals[j]].suit : null;
+                const prevSuit = i > 0 ? hand[unpinnedActuals[i - 1]].suit : null;
+                const group = unpinnedActuals.slice(i, j);
                 group.sort((a, b) => {
                     const sa = hand[a].suit, sb = hand[b].suit;
                     if (sa === nextSuit && sb !== nextSuit) return 1;
@@ -819,9 +866,14 @@ export const Board = (props) => {
                     if (sb === prevSuit && sa !== prevSuit) return 1;
                     return SUIT_ORDER[sa] - SUIT_ORDER[sb];
                 });
-                for (let k = 0; k < group.length; k++) sorted[i + k] = group[k];
+                for (let k = 0; k < group.length; k++) unpinnedActuals[i + k] = group[k];
             }
             i = j;
+        }
+
+        // Reassemble: place sorted unpinned cards back into unpinned slots
+        for (let k = 0; k < unpinnedDisplayIdxs.length; k++) {
+            sorted[unpinnedDisplayIdxs[k]] = unpinnedActuals[k];
         }
 
         setLocalOrder(sorted);
@@ -1147,8 +1199,11 @@ export const Board = (props) => {
                                             if (dragIndex !== null && dragIndex !== i) {
                                                 setLocalOrder(prev => {
                                                     const next = [...prev];
+                                                    const draggedActual = next[dragIndex];
                                                     const [removed] = next.splice(dragIndex, 1);
                                                     next.splice(i, 0, removed);
+                                                    // Pin the dragged card at its new position
+                                                    setPinnedCards(p => new Set(p).add(draggedActual));
                                                     return next;
                                                 });
                                                 setSelectedIndices([]);
@@ -1174,6 +1229,15 @@ export const Board = (props) => {
                                             selected={safeSelection.includes(i)}
                                             selectionIndex={safeSelection.indexOf(i)}
                                             highlighted={actualIdx === newCardIdx}
+                                            pinned={pinnedCards.has(actualIdx)}
+                                            onTogglePin={() => {
+                                                setPinnedCards(prev => {
+                                                    const next = new Set(prev);
+                                                    if (next.has(actualIdx)) next.delete(actualIdx);
+                                                    else next.add(actualIdx);
+                                                    return next;
+                                                });
+                                            }}
                                             onClick={() => { if (dragIndex === null && !gameOver) toggleSelect(i); }}
                                             draggable={true}
                                             onDragStart={(e) => {

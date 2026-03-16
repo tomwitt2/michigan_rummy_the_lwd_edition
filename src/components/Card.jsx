@@ -3,7 +3,7 @@ import { isWild, analyzeRun, RANKS } from '../game/logic';
 export const SUIT_ICONS = { H: '♥', D: '♦', C: '♣', S: '♠' };
 export const SUIT_COLORS = { H: '#e74c3c', D: '#e74c3c', C: '#2c3e50', S: '#2c3e50' };
 
-export const Card = ({ card, selected, onClick, wild, selectionIndex, highlighted, draggable, onDragStart, onDragEnd }) => (
+export const Card = ({ card, selected, onClick, wild, selectionIndex, highlighted, pinned, onTogglePin, draggable, onDragStart, onDragEnd }) => (
     <div
         draggable={draggable}
         onDragStart={onDragStart}
@@ -12,7 +12,7 @@ export const Card = ({ card, selected, onClick, wild, selectionIndex, highlighte
         style={{
             width: '65px',
             height: '95px',
-            border: selected ? '3px solid #3498db' : highlighted ? '3px solid #f1c40f' : '1px solid #ccc',
+            border: selected ? '3px solid #3498db' : pinned ? '2px solid #e67e22' : highlighted ? '3px solid #f1c40f' : '1px solid #ccc',
             borderRadius: '6px',
             display: 'flex',
             flexDirection: 'column',
@@ -27,6 +27,25 @@ export const Card = ({ card, selected, onClick, wild, selectionIndex, highlighte
             transform: selected ? 'translateY(-5px)' : 'none'
         }}
     >
+        {onTogglePin && (
+            <div
+                onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
+                title={pinned ? 'Unpin card' : 'Pin card (excluded from sorting)'}
+                style={{
+                    position: 'absolute',
+                    top: '2px',
+                    left: '2px',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    opacity: pinned ? 1 : 0.25,
+                    transition: 'opacity 0.15s',
+                    lineHeight: 1,
+                    zIndex: 5,
+                }}
+                onMouseEnter={(e) => { if (!pinned) e.currentTarget.style.opacity = '0.7'; }}
+                onMouseLeave={(e) => { if (!pinned) e.currentTarget.style.opacity = '0.25'; }}
+            >📌</div>
+        )}
         {selected && (
             <div style={{
                 position: 'absolute',

@@ -11,6 +11,15 @@ export const LocalLobby = ({ onStart, onReplay }) => {
     const [rules, setRules] = React.useState({ allowAdjacentWilds: false, allowLargeSets: false, mustPlayDiscardPickup: false, hintLayoff: false, hintSwapWild: false });
     const [botDelay, setBotDelay] = React.useState(2);
     const [devSeed, setDevSeed] = React.useState('');
+    const [showAdmin, setShowAdmin] = React.useState(false);
+
+    React.useEffect(() => {
+        const handleKey = (e) => {
+            if (e.key === '*') setShowAdmin(prev => !prev);
+        };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, []);
 
     const addPlayer = () => {
         if (players.length < 8) setPlayers([...players, { name: '', isBot: false, botLevel: 'advanced' }]);
@@ -243,7 +252,7 @@ export const LocalLobby = ({ onStart, onReplay }) => {
                 }}
             >Start Game</button>
 
-            {import.meta.env.DEV && (
+            {showAdmin && (
                 <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
                     <input
                         type="text"

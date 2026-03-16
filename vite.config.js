@@ -12,5 +12,12 @@ export default defineConfig({
             usePolling: true,
             interval: 1000,
         },
+        proxy: {
+            '/games': 'http://localhost:8001',
+            '/socket.io': {
+                target: 'http://localhost:8001',
+                ws: true,
+            },
+        },
     },
 });

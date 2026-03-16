@@ -164,7 +164,7 @@ export function isValidRun(cards, roundIndex, rules = {}) {
     return tryOrder(cards) || tryOrder([...cards].reverse());
 }
 
-const LWDRummyBase = {
+export const LWDRummyBase = {
     name: 'lwd-rummy',
 
     setup: ({ ctx, random }) => {

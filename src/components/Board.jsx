@@ -391,10 +391,8 @@ export const Board = (props) => {
     // Allows sorting/reordering without a boardgame.io move (works off-turn).
     const [localOrder, setLocalOrder] = React.useState(() => []);
     const prevHandRef = React.useRef(null);
-    const autoSortRef = React.useRef(autoSort);
-    autoSortRef.current = autoSort;
-    const wildSortModeRef = React.useRef(wildSortMode);
-    wildSortModeRef.current = wildSortMode;
+    const autoSortRef = React.useRef(false);
+    const wildSortModeRef = React.useRef('in-place');
     React.useEffect(() => {
         const hand = G.players?.[playerID]?.hand;
         if (!hand) return;
@@ -461,6 +459,8 @@ export const Board = (props) => {
     // Wild card sort mode: 'in-place' | 'left' | 'right'
     const [wildSortMode, setWildSortMode] = usePreference('wildSortMode', 'in-place');
     const [autoSort, setAutoSort] = usePreference('autoSort', false);
+    autoSortRef.current = autoSort;
+    wildSortModeRef.current = wildSortMode;
     // Chat system
     const [chatMessages, setChatMessages] = React.useState(props.initialChat || []);
     const [bulletMessages, setBulletMessages] = React.useState(props.initialBullets || []);

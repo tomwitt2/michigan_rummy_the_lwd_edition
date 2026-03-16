@@ -494,6 +494,71 @@ export const Board = (props) => {
     const [autoSort, setAutoSort] = usePreference('autoSort', false);
     autoSortRef.current = autoSort;
     wildSortModeRef.current = wildSortMode;
+    // Status log — rolling list of game events
+    const [statusLog, setStatusLog] = React.useState([]);
+    const prevStatusState = React.useRef({});
+    React.useEffect(() => {
+        if (!G || !ctx) return;
+        const prev = prevStatusState.current;
+        const msgs = [];
+        const cp = ctx.currentPlayer;
+        const name = G.playerNames?.[cp] || `Player ${cp}`;
+
+        // New turn started
+        if (prev.turn !== ctx.turn || prev.currentPlayer !== cp) {
+            if (G.isFirstTurn) {
+                msgs.push(`It's ${name}'s turn (first player — 8 cards).`);
+            } else {
+                msgs.push(`It's ${name}'s turn.`);
+            }
+        }
+
+        // Drew a card
+        if (!prev.hasDrawn && G.hasDrawn) {
+            if (G.drewFromDiscard) {
+                msgs.push(`${name} drew from the discard pile.`);
+            } else {
+                msgs.push(`${name} drew from the deck.`);
+            }
+        }
+
+        // Played a meld
+        if (prev.boardLen != null && G.board.length > prev.boardLen) {
+            const newMelds = G.board.length - prev.boardLen;
+            msgs.push(`${name} played ${newMelds === 1 ? 'a meld' : `${newMelds} melds`}.`);
+        }
+
+        // Round ended
+        if (prev.scoreHistoryLen != null && (G.scoreHistory?.length || 0) > prev.scoreHistoryLen) {
+            const lastRound = G.scoreHistory[G.scoreHistory.length - 1];
+            if (lastRound.winner === 'None (Vote)') {
+                msgs.push(`Round ${lastRound.round + 1} ended by vote.`);
+            } else {
+                const winnerName = G.playerNames?.[lastRound.winner] || `Player ${lastRound.winner}`;
+                msgs.push(`${winnerName} went out! Round ${lastRound.round + 1} over.`);
+            }
+        }
+
+        // Awaiting action
+        if (msgs.length > 0 && !ctx.gameover) {
+            if (G.hasDrawn || G.isFirstTurn) {
+                msgs.push(`Awaiting ${name}'s play or discard.`);
+            }
+        }
+
+        if (msgs.length > 0) {
+            setStatusLog(prev => [...prev, ...msgs].slice(-20));
+        }
+
+        prevStatusState.current = {
+            turn: ctx.turn,
+            currentPlayer: cp,
+            hasDrawn: G.hasDrawn,
+            boardLen: G.board.length,
+            scoreHistoryLen: G.scoreHistory?.length || 0,
+        };
+    }, [G, ctx]);
+
     // Chat system
     const [chatMessages, setChatMessages] = React.useState(props.initialChat || []);
     const [bulletMessages, setBulletMessages] = React.useState(props.initialBullets || []);
@@ -1208,14 +1273,34 @@ export const Board = (props) => {
                                     >Rules</button>
                                 </div>
                             </div>
-                            <TableRing
-                                numPlayers={ctx.numPlayers}
-                                currentPlayer={ctx.currentPlayer}
-                                playerID={playerID}
-                                playerNames={G.playerNames}
-                                firstPlayer={ctx.gameover ? null : G.round % ctx.numPlayers}
-                                dealer={ctx.gameover ? null : (G.round + ctx.numPlayers - 1) % ctx.numPlayers}
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {/* Status window */}
+                                <div style={{
+                                    width: '200px', height: '80px', overflowY: 'auto',
+                                    background: '#f8f9fa', border: '1px solid #ddd', borderRadius: '6px',
+                                    padding: '4px 8px', fontSize: '11px', lineHeight: 1.4,
+                                    color: '#555', flexShrink: 0,
+                                }}
+                                    ref={el => {
+                                        if (el) el.scrollTop = el.scrollHeight;
+                                    }}
+                                >
+                                    {statusLog.map((msg, i) => (
+                                        <div key={i} style={{
+                                            color: i === statusLog.length - 1 ? '#2c3e50' : '#999',
+                                            fontWeight: i === statusLog.length - 1 ? 'bold' : 'normal',
+                                        }}>{msg}</div>
+                                    ))}
+                                </div>
+                                <TableRing
+                                    numPlayers={ctx.numPlayers}
+                                    currentPlayer={ctx.currentPlayer}
+                                    playerID={playerID}
+                                    playerNames={G.playerNames}
+                                    firstPlayer={ctx.gameover ? null : G.round % ctx.numPlayers}
+                                    dealer={ctx.gameover ? null : (G.round + ctx.numPlayers - 1) % ctx.numPlayers}
+                                />
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '8px', marginTop: '4px', marginBottom: '6px' }}>

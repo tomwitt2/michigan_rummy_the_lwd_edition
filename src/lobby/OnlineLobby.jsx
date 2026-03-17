@@ -112,9 +112,9 @@ export const OnlineLobby = ({ playerName, onBack }) => {
                 playerID: String(openSeat.id),
                 playerName,
             });
-            const match = { matchID, playerID: String(openSeat.id), credentials: playerCredentials };
-            setJoinedMatch(match);
-            saveSession({ ...match, playerName });
+            const session = { matchID, playerID: String(openSeat.id), credentials: playerCredentials };
+            setJoinedMatch(session);
+            saveSession({ ...session, playerName });
         } catch (err) {
             setError(`Failed to join: ${err.message}`);
         }

@@ -1,7 +1,9 @@
 {
   "name": "family-card-engine",
   "version": "0.95.1",
-  "description": "",
+  "description": "Michigan Rummy — LWD Edition. A multiplayer card game with bots, replays, and PDF export.",
+  "author": "Tom Wittbrodt, Jr.",
+  "license": "MIT",
   "main": "index.js",
   "scripts": {
     "dev": "vite",

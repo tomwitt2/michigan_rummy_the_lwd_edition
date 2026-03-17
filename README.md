@@ -2,6 +2,8 @@
 
 A digital version of Michigan Rummy, customized for the **L**ott, **W**ittbrodt, and **D**logolpolski families. Play locally with bots, online with friends, or replay saved games.
 
+![Michigan Rummy — Melding with wild cards](screen-shots/Melding_with_wild.png)
+
 ## How the Game Works
 
 Play 13 rounds, one for each card rank (Ace through King). Each round, that rank is **wild**. Players draw, meld, and discard to empty their hand. The player who goes out scores 0 for the round; everyone else scores the face value of cards remaining in hand. **Lowest total score after 13 rounds wins.**

@@ -1996,6 +1996,13 @@ export const Board = (props) => {
                     </>
                 )}
             </div>
+            <div style={{
+                position: 'fixed', bottom: '4px', right: '8px',
+                fontSize: '10px', color: '#ccc', fontFamily: 'monospace',
+                pointerEvents: 'none', zIndex: 1,
+            }}>
+                v0.95.1 {import.meta.env.DEV ? '(dev)' : ''}
+            </div>
         </ErrorBoundary>
     );
 };

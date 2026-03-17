@@ -299,11 +299,13 @@ export const LWDRummyBase = {
                 player.isOnBoard = true;
                 validMelds.forEach(meld => {
                     const newIndex = G.board.length;
-                    meld.owner = ctx.currentPlayer;
-                    if (meld.type === 'run') {
-                        meld.cards = normalizeRunOrder(meld.cards, G.round);
-                    }
-                    G.board.push(meld);
+                    // Deep copy meld to avoid mutating frozen action payload on replay
+                    const boardMeld = {
+                        ...meld,
+                        owner: ctx.currentPlayer,
+                        cards: meld.type === 'run' ? normalizeRunOrder([...meld.cards], G.round) : [...meld.cards],
+                    };
+                    G.board.push(boardMeld);
                     G.playedMeldsIndices.push(newIndex);
                     G.playedCardThisTurn = true;
 

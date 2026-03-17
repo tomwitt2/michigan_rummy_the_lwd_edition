@@ -30,19 +30,23 @@ export const ReplayControls = ({ engine, onExit, onStateChange, onPlayFromHere }
         onStateChange?.();
     }, [engine, onStateChange]);
 
-    // Auto-play
+    // Auto-play — use chained setTimeout to avoid double-dispatch from setInterval
     React.useEffect(() => {
         if (!playing) return;
-        const timer = setInterval(() => {
+        let cancelled = false;
+        const tick = () => {
+            if (cancelled) return;
             const ok = engine.stepForward();
             if (ok) {
                 setStep(engine.currentStep);
                 onStateChange?.();
+                timerRef.current = setTimeout(tick, speed);
             } else {
                 setPlaying(false);
             }
-        }, speed);
-        return () => clearInterval(timer);
+        };
+        const timerRef = { current: setTimeout(tick, speed) };
+        return () => { cancelled = true; clearTimeout(timerRef.current); };
     }, [playing, speed, engine, onStateChange]);
 
     const state = engine.getState();

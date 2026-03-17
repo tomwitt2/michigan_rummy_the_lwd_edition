@@ -57,7 +57,23 @@ export class ReplayEngine {
         if (this.currentStep >= this.actions.length - 1) return false;
         this.currentStep++;
         const action = this.actions[this.currentStep];
+        const prevState = this.client.getState();
         this.client.store.dispatch(action);
+        const newState = this.client.getState();
+        // Debug: detect divergence
+        if (prevState && newState && prevState.ctx.turn === newState.ctx.turn &&
+            action.payload.type === 'drawCard' &&
+            prevState.G.players[action.payload.playerID]?.hand.length === newState.G.players[action.payload.playerID]?.hand.length) {
+            console.warn(`[Replay] REJECTED step ${this.currentStep}: ${action.payload.type} by P${action.payload.playerID}`,
+                { hasDrawn: prevState.G.hasDrawn, isFirstTurn: prevState.G.isFirstTurn, currentPlayer: prevState.ctx.currentPlayer });
+        }
+        // Debug: log round transitions
+        if (prevState && newState && prevState.G.round !== newState.G.round) {
+            console.log(`[Replay] Round ${newState.G.round + 1} started at step ${this.currentStep}, deck: ${newState.G.deck.length}`);
+        }
+        if (newState && newState.G.flipCount > 0 && (!prevState || prevState.G.flipCount !== newState.G.flipCount)) {
+            console.warn(`[Replay] FLIP at step ${this.currentStep}! FlipCount: ${newState.G.flipCount}`);
+        }
         this.snapshots[this.currentStep + 1] = this._captureState();
         return true;
     }

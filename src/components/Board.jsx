@@ -2084,7 +2084,7 @@ export const Board = (props) => {
                 fontSize: '10px', color: '#ccc', fontFamily: 'monospace',
                 pointerEvents: 'none', zIndex: 1,
             }}>
-                v0.95.1 {import.meta.env.DEV ? '(dev)' : ''}
+                v0.96.0 {import.meta.env.DEV ? '(dev)' : ''}
             </div>
         </ErrorBoundary>
     );

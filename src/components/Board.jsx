@@ -86,9 +86,21 @@ const TableRing = ({ numPlayers, currentPlayer, playerID, playerNames, dealer, f
 
 const ORDINAL_LABELS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
 
-const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editingNameId, nameInputRef, onCommitName, onCancelEdit }) => {
+const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editingNameId, nameInputRef, onCommitName, onCancelEdit, bots }) => {
     const rounds = RANKS; // A through K (13 rounds)
     const isGameOver = G.scoreHistory?.length >= 13;
+    const [revealPopup, setRevealPopup] = React.useState(null); // { roundIdx, playerId, cards, score }
+    const revealEnabled = G.rules?.revealRemainingCards;
+
+    const canReveal = (playerId) => {
+        if (!revealEnabled) return false;
+        // Bots always allow reveal
+        if (bots && bots[String(playerId)]) return true;
+        // In local games (bots present or no matchData), all players reveal
+        if (bots) return true;
+        // For now, all players in local games can reveal
+        return true;
+    };
 
     // Compute final rankings (lower score = better rank)
     const rankings = React.useMemo(() => {
@@ -182,9 +194,35 @@ const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editi
                                             {roundHistory ? (
                                                 <>
                                                     <span style={{ fontSize: '16px' }}>{runningTotal}</span>
-                                                    <sup style={{ color: '#e74c3c', marginLeft: '2px', fontWeight: 'bold' }}>
-                                                        {isRoundWinner ? <span style={{ color: '#27ae60', fontWeight: 'bold' }}>0</span> : `+${roundScore}`}
-                                                    </sup>
+                                                    {(() => {
+                                                        const clickable = canReveal(pId) && roundHistory.remainingHands?.[String(pId)];
+                                                        const supContent = isRoundWinner
+                                                            ? <span style={{ color: '#27ae60', fontWeight: 'bold' }}>0</span>
+                                                            : `+${roundScore}`;
+                                                        return clickable ? (
+                                                            <sup
+                                                                onClick={() => setRevealPopup({
+                                                                    roundIdx,
+                                                                    playerId: pId,
+                                                                    cards: roundHistory.remainingHands[String(pId)],
+                                                                    score: roundScore,
+                                                                    playerName: playerNames?.[pId] || `Player ${pId}`,
+                                                                    roundLabel: rank,
+                                                                })}
+                                                                style={{
+                                                                    color: isRoundWinner ? '#27ae60' : '#e74c3c',
+                                                                    marginLeft: '2px', fontWeight: 'bold',
+                                                                    cursor: 'pointer', textDecoration: 'underline',
+                                                                    textDecorationStyle: 'dotted',
+                                                                }}
+                                                                title="Click to see remaining cards"
+                                                            >{supContent}</sup>
+                                                        ) : (
+                                                            <sup style={{ color: '#e74c3c', marginLeft: '2px', fontWeight: 'bold' }}>
+                                                                {supContent}
+                                                            </sup>
+                                                        );
+                                                    })()}
                                                 </>
                                             ) : (
                                                 isCurrentRound && !isGameOver ? '...' : ''
@@ -226,6 +264,50 @@ const Scoreboard = ({ G, numPlayers, playerNames, currentPlayer, onRename, editi
                     </tr>
                 </tfoot>
             </table>
+
+            {/* Reveal remaining cards popup */}
+            {revealPopup && (
+                <div
+                    onClick={() => setRevealPopup(null)}
+                    style={{
+                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000,
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            background: 'white', borderRadius: '12px', padding: '20px 24px',
+                            maxWidth: '400px', width: '90%', fontFamily: '"Arial", sans-serif',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                        }}
+                    >
+                        <h3 style={{ margin: '0 0 4px', color: '#2c3e50', fontSize: '16px' }}>
+                            {revealPopup.playerName} — Round {revealPopup.roundIdx + 1} ({revealPopup.roundLabel})
+                        </h3>
+                        <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#888' }}>
+                            {revealPopup.cards.length === 0
+                                ? 'Went out with no cards!'
+                                : `${revealPopup.cards.length} card${revealPopup.cards.length !== 1 ? 's' : ''} remaining — ${revealPopup.score} points`}
+                        </p>
+                        {revealPopup.cards.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '16px' }}>
+                                {revealPopup.cards.map((card, i) => (
+                                    <Card key={i} card={card} wild={isWild(card, revealPopup.roundIdx)} />
+                                ))}
+                            </div>
+                        )}
+                        <button
+                            onClick={() => setRevealPopup(null)}
+                            style={{
+                                width: '100%', padding: '8px', border: 'none', borderRadius: '6px',
+                                background: '#3498db', color: 'white', fontSize: '14px', fontWeight: 'bold',
+                                cursor: 'pointer',
+                            }}
+                        >Close</button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -1980,6 +2062,7 @@ export const Board = (props) => {
                                 nameInputRef={nameInputRef}
                                 onCommitName={(id) => commitName(String(id))}
                                 onCancelEdit={() => setEditingNameId(null)}
+                                bots={props.bots}
                             />
                             <ChatPanel
                                 messages={props.replayChat || chatMessages}

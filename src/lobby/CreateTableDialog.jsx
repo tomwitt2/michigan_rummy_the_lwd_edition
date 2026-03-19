@@ -6,6 +6,7 @@ const defaultRules = {
     mustPlayDiscardPickup: false,
     hintLayoff: false,
     hintSwapWild: false,
+    revealRemainingCards: false,
 };
 
 export const CreateTableDialog = ({ onCreateTable, onCancel }) => {
@@ -82,6 +83,7 @@ export const CreateTableDialog = ({ onCreateTable, onCancel }) => {
                         ['mustPlayDiscardPickup', 'Discard pickup must be played immediately'],
                         ['hintLayoff', 'Lay Off button hinting'],
                         ['hintSwapWild', 'Wild Swap button hinting'],
+                        ['revealRemainingCards', 'Reveal remaining cards after rounds'],
                     ].map(([key, label]) => (
                         <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', marginTop: '8px' }}>
                             <input

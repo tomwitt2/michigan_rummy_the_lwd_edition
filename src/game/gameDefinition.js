@@ -13,6 +13,7 @@ const defaultRules = {
     mustPlayDiscardPickup: false,
     hintLayoff: false,
     hintSwapWild: false,
+    revealRemainingCards: false,
 };
 
 export const LWDRummyMultiplayer = {

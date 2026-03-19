@@ -9,7 +9,7 @@ export const LocalLobby = ({ onStart, onReplay }) => {
         { name: '', isBot: false, botLevel: 'advanced' },
         { name: '', isBot: false, botLevel: 'advanced' },
     ]);
-    const [rules, setRules] = React.useState({ allowAdjacentWilds: false, allowLargeSets: false, mustPlayDiscardPickup: false, hintLayoff: false, hintSwapWild: false });
+    const [rules, setRules] = React.useState({ allowAdjacentWilds: false, allowLargeSets: false, mustPlayDiscardPickup: false, hintLayoff: false, hintSwapWild: false, revealRemainingCards: false });
     const [botDelay, setBotDelay] = usePreference('botDelay', 2);
     const [devSeed, setDevSeed] = React.useState('');
     const [showAdmin, setShowAdmin] = React.useState(false);
@@ -231,6 +231,15 @@ export const LocalLobby = ({ onStart, onReplay }) => {
                         style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                     />
                     Wild Swap button hinting (highlights when a swap is possible)
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px', marginTop: '10px' }}>
+                    <input
+                        type="checkbox"
+                        checked={rules.revealRemainingCards}
+                        onChange={(e) => setRules({ ...rules, revealRemainingCards: e.target.checked })}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                    Reveal remaining cards (click round scores to see leftover hands)
                 </label>
             </div>
 

@@ -499,6 +499,8 @@ export const LWDRummyBase = {
                     const points = G.players[id].hand.reduce((acc, card) => acc + getCardValue(card, G.round), 0);
                     G.players[id].score += points;
                     roundResults.scores[id] = points;
+                    roundResults.remainingHands = roundResults.remainingHands || {};
+                    roundResults.remainingHands[id] = [...G.players[id].hand];
                 }
 
                 G.scoreHistory.push(roundResults);

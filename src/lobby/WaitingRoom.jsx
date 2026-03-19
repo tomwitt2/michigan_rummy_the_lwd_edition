@@ -244,6 +244,7 @@ export const WaitingRoom = ({ matchID, playerID, credentials, playerName, onGame
                                 mustPlayDiscardPickup: 'Must play pickup',
                                 hintLayoff: 'Lay-off hints',
                                 hintSwapWild: 'Swap hints',
+                                revealRemainingCards: 'Reveal cards',
                             };
                             return labels[k] || k;
                         }).join(', ')}
